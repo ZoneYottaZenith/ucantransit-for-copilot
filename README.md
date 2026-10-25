@@ -9,7 +9,7 @@
 Copilot 的聊天界面、Agent 模式、工具调用、指令与 Skills 全部留在原处，本扩展只给模型选择器多挂一个模型来源；需要配置时才打开侧边栏面板。
 
 - **接入只要两样东西**：调用端点地址 URL 与 API Key。模型清单、上下文长度、工具 / 图片 / 推理能力、每个模型的原生协议全部自动获取，一个参数都不用手填。
-- **多个站点可以同时用**：任意多家中转站并存，各自的地址、Key、模型与协议设置互不干扰；全模型与四套协议（OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini）统一收进同一个模型选择器，按站点归组呈现，也能只停用其中一家而不影响其他。
+- **多个站点可以同时用**：任意多家中转站并存，各自的地址、Key、模型与协议设置互不干扰；全模型与四套协议（OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Gemini）统一收进同一个模型选择器，同站模型排在一起，也能只停用其中一家而不影响其他。
 - **能力栈原样继承**：Agent 模式的多步任务、文件 / 终端 / Git / 测试工具调用、`.instructions.md` 与 `AGENTS.md`、多轮工具编排，跑的都是 Copilot 自己那一套。
 - **零侵入**：不修改 Copilot 的任何设置，不接管它的请求，也不新增聊天界面；没有学习成本。
 - **零运行时依赖**：纯 VS Code API + Node 内置模块，不需要 Python、Docker 或本地代理进程。
@@ -66,6 +66,12 @@ GPT-6.1、Claude Opus 5.5、DeepSeek V4.1 Flash（1017）、GLM-5.3、Kimi K3、
 
 ## 安装与调试
 
+### 前置要求
+
+- VS Code 1.120 或更高
+- 已安装 GitHub Copilot Chat 扩展（免费版即可）
+- 一个可用的中转站或官方 API 端点，以及它的 API Key
+
 ### 方式一：调试运行（推荐先这样验证）
 
 ```bash
@@ -103,7 +109,13 @@ code --install-extension ucantransit-0.6.0.vsix
 ## 测试
 
 ```bash
+# macOS / Linux
 for f in 测试脚本/*.js; do node "$f"; done
+```
+
+```powershell
+# Windows PowerShell
+Get-ChildItem 测试脚本/*.js | ForEach-Object { node $_.FullName }
 ```
 
 | 脚本 | 覆盖内容 |
@@ -125,7 +137,7 @@ for f in 测试脚本/*.js; do node "$f"; done
 |---|---|
 | 填错误地址 | 面板显示错误，Copilot 原有模型不受影响 |
 | 填正确地址和 Key | 显示「已注入 Copilot」与模型数量 |
-| 模型选择器 | 出现 UCanTransit 分组，带上下文/工具/图片/协议说明 |
+| 模型选择器 | 每行形如 `[站点名] 模型名`，同站模型排在一起 |
 | 对支持推理的模型 | 模型选择器里出现「思考强度」下拉 |
 | 发普通对话 | 流式返回；模型有思考过程时显示折叠的思考块 |
 | Agent 模式读文件 | 工具调用成功，可连续多轮 |
@@ -193,6 +205,4 @@ UCanTransit for Copilot
 ├─ LICENSE                   MIT
 └─ .vscodeignore / .gitignore
 ```
-
-> `out/` 是 `npm run compile` 的编译产物，不入库；`*.vsix` 同样不提交。
 

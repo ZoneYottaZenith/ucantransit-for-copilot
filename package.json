@@ -103,6 +103,9 @@
               },
               "baseUrl": {
                 "type": "string"
+              },
+              "enabled": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -114,29 +117,12 @@
         "ucantransit.activeSiteId": {
           "type": "string",
           "default": "",
-          "description": "当前使用的中转站 id。"
+          "description": "面板当前编辑的中转站 id（所有已启用站点都会注入，这里只决定面板显示哪一个）。"
         },
         "ucantransit.modelsBySite": {
           "type": "object",
           "default": {},
           "description": "每个中转站扫描到的模型（由面板自动维护）。"
-        },
-        "ucantransit.defaults": {
-          "type": "object",
-          "default": {},
-          "description": "全局默认采样参数，模型单独设置的优先。",
-          "properties": {
-            "temperature": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 2
-            },
-            "topP": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            }
-          }
         },
         "ucantransit.enabled": {
           "type": "boolean",
