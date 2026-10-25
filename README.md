@@ -1,4 +1,12 @@
-# UCanTransit for Copilot
+<table>
+  <tr>
+    <td><h1>UCanTransit for Copilot</h1></td>
+    <td align="right">
+      <img src="https://img.shields.io/badge/License-MIT-3DA639?style=flat-square" alt="License: MIT" />
+      <img src="https://img.shields.io/badge/GitHub_Copilot-Required-24292F?style=flat-square&logo=githubcopilot&logoColor=white" alt="Requires GitHub Copilot" />
+    </td>
+  </tr>
+</table>
 
 > **填入 URL 与 API Key，任意中转站或官方 API 端点立刻出现在 GitHub Copilot 的模型选择器里。**
 
