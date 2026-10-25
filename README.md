@@ -150,28 +150,49 @@ for f in 测试脚本/*.js; do node "$f"; done
 ## 目录结构
 
 ```
-src/
-  extension.ts         注册 provider、面板、命令，监听配置变化
-  provider.ts          Copilot 的 LanguageModelChatProvider 实现
-  protocols/           四种协议的请求构造与流式解析
-    openai.ts / responses.ts / anthropic.ts / gemini.ts
-    index.ts           分发与协议标签
-    types.ts           共用类型、协议推断
-  report.ts            统一的文本/思考/工具调用上报
-  http.ts              重试、超时、SSE 与 NDJSON 行解析
-  modelCatalog.ts      模型列表拉取、格式兼容、能力与档位合并
-  modelsDev.ts         models.dev 快照索引、多数投票合并与模糊匹配
-  reasoningCatalog.ts  OpenRouter 思考档位（24 小时缓存）
-  displayName.ts       模型展示名的整理规则
-  config.ts            多站点、站点启停、模型、密钥读写
-  panel.ts             侧边栏 WebviewView
-  types.ts             共用类型
-media/
-  panel.html/css/js    面板界面
-  models_dev.json      模型能力快照
-  icon.svg             活动栏图标
-测试脚本/
-  多站点注入自检.js / 扫描逻辑自检.js / 协议自检.js / 思考档位自检.js
-  思考开关自检.js / 配置读写自检.js / 刷新合并自检.js / 模型名自检.js
-  面板预览/             面板排版与配色的静态预览
+UCanTransit for Copilot
+├─ src/                      扩展源码（TypeScript，编译到 out/）
+│  ├─ extension.ts           注册 provider、面板、命令，监听配置变化
+│  ├─ provider.ts            Copilot 的 LanguageModelChatProvider 实现
+│  ├─ protocols/             四种协议的请求构造与流式解析
+│  │  ├─ openai.ts           Chat Completions
+│  │  ├─ responses.ts        OpenAI Responses
+│  │  ├─ anthropic.ts        Anthropic Messages
+│  │  ├─ gemini.ts           Gemini generateContent
+│  │  ├─ thinking.ts         思考开关与档位注入
+│  │  ├─ index.ts            分发与协议标签
+│  │  └─ types.ts            共用类型、协议推断
+│  ├─ report.ts              文本 / 思考 / 工具调用上报
+│  ├─ http.ts                重试、超时、SSE 与 NDJSON 解析
+│  ├─ modelCatalog.ts        模型列表拉取、格式兼容、能力合并
+│  ├─ modelsDev.ts           models.dev 快照索引、投票合并与模糊匹配
+│  ├─ reasoningCatalog.ts    OpenRouter 思考档位（24 小时缓存）
+│  ├─ displayName.ts         模型展示名整理
+│  ├─ config.ts              多站点、站点启停、模型与密钥读写
+│  ├─ panel.ts               侧边栏 WebviewView
+│  └─ types.ts               共用类型
+├─ media/                    面板资源与图标
+│  ├─ panel.html / panel.css / panel.js
+│  ├─ models_dev.json        模型能力快照
+│  ├─ icon.svg               活动栏与面板 logo（mask 渲染）
+│  └─ icon.png               市场主图
+├─ 测试脚本/                 不依赖 VS Code 的自检与预览
+│  ├─ 多站点注入自检.js      多站点注入、id 隔离、请求路由、站点启停
+│  ├─ 扫描逻辑自检.js        快照解析、能力推断、模糊匹配、列表格式兼容
+│  ├─ 协议自检.js            四种协议的文本 / 思考 / 工具调用
+│  ├─ 思考档位自检.js        档位枚举、排序、默认值回退
+│  ├─ 思考开关自检.js        DeepSeek / GLM / Kimi / Qwen / Gemini 思考开关
+│  ├─ 配置读写自检.js        批量启停、单模型改协议、多站点隔离
+│  ├─ 刷新合并自检.js        刷新时保留用户设置、同步上游新值
+│  ├─ 模型名自检.js          展示名大小写规则
+│  ├─ 面板预览/              面板排版与配色的静态预览
+│  └─ 图标预览/              活动栏图标在深浅主题下的效果预览
+├─ package.json              扩展清单（贡献点、分类、关键词、图标）
+├─ README.md                 本文档
+├─ CHANGELOG.md              版本记录
+├─ LICENSE                   MIT
+└─ .vscodeignore / .gitignore
 ```
+
+> `out/` 是 `npm run compile` 的编译产物，不入库；`*.vsix` 同样不提交。
+
