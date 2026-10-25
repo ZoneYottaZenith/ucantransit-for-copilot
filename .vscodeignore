@@ -9,4 +9,5 @@ package-lock.json
 *.vsix
 UCanTransit-logo.svg
 media/icon-nodes.backup.svg
+resources/**
 .gitignore
