@@ -1,0 +1,202 @@
+{
+  "name": "ucantransit",
+  "displayName": "UCanTransit for Copilot",
+  "description": "填入调用端点地址 URL 与 API Key，即可把任意中转站或官方 API 接入 GitHub Copilot Chat；自动识别 OpenAI、Anthropic、Gemini 协议，支持多站点并行。",
+  "version": "0.6.0",
+  "publisher": "ucantransit",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZoneYottaZenith/ucantransit-for-copilot.git"
+  },
+  "engines": {
+    "vscode": "^1.120.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Machine Learning"
+  ],
+  "keywords": [
+    "copilot",
+    "github-copilot",
+    "copilot-chat",
+    "openai",
+    "openai-compatible",
+    "anthropic",
+    "claude",
+    "gemini",
+    "deepseek",
+    "gpt",
+    "llm",
+    "byok",
+    "relay",
+    "proxy",
+    "api-gateway",
+    "model-picker",
+    "中转站",
+    "中转"
+  ],
+  "enabledApiProposals": [
+    "chatProvider"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "ucantransit",
+        "displayName": "UCanTransit",
+        "managementCommand": "ucantransit.openPanel"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ucantransit",
+          "title": "UCanTransit",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "ucantransit": [
+        {
+          "id": "ucantransit.panel",
+          "type": "webview",
+          "name": "UCanTransit"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "ucantransit.openPanel",
+        "category": "UCanTransit",
+        "title": "打开中转站面板"
+      },
+      {
+        "command": "ucantransit.connect",
+        "category": "UCanTransit",
+        "title": "连接并扫描模型"
+      },
+      {
+        "command": "ucantransit.refresh",
+        "category": "UCanTransit",
+        "title": "刷新模型列表"
+      }
+    ],
+    "configuration": {
+      "title": "UCanTransit",
+      "properties": {
+        "ucantransit.sites": {
+          "type": "array",
+          "default": [],
+          "description": "已配置的中转站（由面板自动维护）。",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "baseUrl": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "baseUrl"
+            ]
+          }
+        },
+        "ucantransit.activeSiteId": {
+          "type": "string",
+          "default": "",
+          "description": "当前使用的中转站 id。"
+        },
+        "ucantransit.modelsBySite": {
+          "type": "object",
+          "default": {},
+          "description": "每个中转站扫描到的模型（由面板自动维护）。"
+        },
+        "ucantransit.defaults": {
+          "type": "object",
+          "default": {},
+          "description": "全局默认采样参数，模型单独设置的优先。",
+          "properties": {
+            "temperature": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "topP": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "ucantransit.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "是否把中转站模型注入 Copilot 的模型选择器。关闭后不影响 Copilot 原有功能。"
+        },
+        "ucantransit.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "中转站基础地址，例如 https://api.example.com/v1。由面板写入，通常无需手动修改。"
+        },
+        "ucantransit.models": {
+          "type": "array",
+          "default": [],
+          "description": "已发现并启用的模型（由面板自动维护）。",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "contextLength": {
+                "type": "number"
+              },
+              "toolCalling": {
+                "type": "boolean"
+              },
+              "vision": {
+                "type": "boolean"
+              },
+              "reasoning": {
+                "type": "boolean"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "models.dev",
+                  "heuristic",
+                  "default"
+                ]
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package --no-dependencies --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.120.0",
+    "@vscode/vsce": "^3.2.1",
+    "typescript": "^5.7.2"
+  }
+}

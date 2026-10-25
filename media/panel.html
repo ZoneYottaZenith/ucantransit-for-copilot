@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8" />
+	<meta http-equiv="Content-Security-Policy" content="%CSP%" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<link rel="stylesheet" href="%CSS_URI%" />
+	<title>UCanTransit</title>
+</head>
+<body>
+	<div class="wrap">
+		<header class="brand">
+			<div class="brand-left">
+				<span class="logo" aria-hidden="true"></span>
+				<div class="brand-text">
+					<h1>UCanTransit</h1>
+					<p id="subtitle">把中转站模型接进 Copilot</p>
+				</div>
+			</div>
+			<label class="switch" title="开启后模型会出现在 Copilot 模型选择器里">
+				<input type="checkbox" id="enabled" />
+				<span class="track"></span>
+			</label>
+		</header>
+
+		<section class="panel-section">
+			<div class="section-head">
+				<span class="label">中转站</span>
+				<div class="head-actions">
+					<button id="newSite" class="chip-btn" type="button" title="添加一个新的中转站">新增</button>
+					<button id="toggleSite" class="chip-btn" type="button" title="停用后这个站点的模型不会出现在 Copilot 里">停用</button>
+					<button id="removeSite" class="chip-btn" type="button" title="移除当前站点">移除</button>
+				</div>
+			</div>
+			<select id="siteSelect" title="切换中转站"></select>
+		</section>
+
+		<section class="card">
+			<div class="field">
+				<div class="field-head">
+					<label for="siteName">站点名称</label>
+					<p class="hint" id="siteNameHint">只是备注，用来区分多个中转站。</p>
+				</div>
+				<input id="siteName" type="text" placeholder="留空就用域名，比如：公司中转" spellcheck="false" autocomplete="off" />
+			</div>
+			<div class="field">
+				<div class="field-head">
+					<label for="baseUrl">地址</label>
+					<p class="hint" id="urlHint">填到 /v1 即可，模型列表路径会自动补全。</p>
+				</div>
+				<input id="baseUrl" type="text" placeholder="https://api.example.com/v1" spellcheck="false" autocomplete="off" />
+			</div>
+			<div class="field">
+				<div class="field-head">
+					<label for="apiKey">API Key</label>
+					<p class="hint" id="keyHint">密钥存在系统密钥库，不写进设置文件。</p>
+				</div>
+				<div class="key-row">
+					<input id="apiKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off" />
+					<button id="toggleKey" class="chip-btn" type="button" title="显示或隐藏密钥">显示</button>
+				</div>
+			</div>
+			<button id="connect" class="primary" type="button">连接并读取模型</button>
+		</section>
+
+		<section class="models">
+			<div class="section-head models-head">
+				<h2>模型</h2>
+				<span id="badge" class="badge">未配置</span>
+				<span id="meta" class="meta"></span>
+				<div class="head-actions">
+					<button id="selectAll" class="chip-btn" type="button">全开</button>
+					<button id="selectNone" class="chip-btn" type="button">全关</button>
+					<button id="rescan" class="chip-btn" type="button">刷新</button>
+				</div>
+			</div>
+			<div class="search-row">
+				<input id="search" class="search" type="text" placeholder="搜索模型" spellcheck="false" />
+				<span class="protocol-hint" title="每个模型都可以单独切换协议，发请求失败时会自动退回 Chat Completions">协议可改</span>
+			</div>
+			<ul id="modelList" class="model-list"></ul>
+			<p id="empty" class="empty">填好地址和 Key，点上面的按钮开始读取。</p>
+		</section>
+
+		<footer>
+			<button id="openSettings" class="chip-btn" type="button">打开设置</button>
+			<button id="clear" class="chip-btn danger" type="button">清空当前站点</button>
+		</footer>
+	</div>
+
+	<div id="toasts" class="toasts" aria-live="polite"></div>
+	<script nonce="%NONCE%" src="%SCRIPT_URI%"></script>
+</body>
+</html>

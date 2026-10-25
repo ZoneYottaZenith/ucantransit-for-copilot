@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8" />
+	<title>UCanTransit 图标预览</title>
+	<style>
+		/* 模拟 VS Code 活动栏：48px 格子 + 24px 图标，用 mask 上色 */
+		body {
+			margin: 0;
+			padding: 24px;
+			font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+			font-size: 12px;
+			background: #1f1f1f;
+			color: #cccccc;
+		}
+
+		.themes {
+			display: flex;
+			gap: 24px;
+		}
+
+		.pane {
+			padding: 12px;
+			border-radius: 8px;
+			border: 1px solid #333;
+		}
+
+		.pane.dark {
+			background: #181818;
+		}
+
+		.pane.light {
+			background: #f3f3f3;
+			color: #3b3b3b;
+			border-color: #ddd;
+		}
+
+		.bar {
+			display: flex;
+			flex-direction: column;
+			gap: 4px;
+		}
+
+		.cell {
+			width: 48px;
+			height: 48px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			position: relative;
+		}
+
+		.cell.active::before {
+			content: "";
+			position: absolute;
+			left: 0;
+			top: 8px;
+			bottom: 8px;
+			width: 2px;
+			background: currentColor;
+		}
+
+		.masked {
+			display: block;
+			background-color: currentColor;
+			mask: url("../../media/icon.svg") no-repeat 50% 50%;
+			mask-size: 24px;
+			-webkit-mask: url("../../media/icon.svg") no-repeat 50% 50%;
+			-webkit-mask-size: 24px;
+		}
+
+		.masked.size24 {
+			width: 24px;
+			height: 24px;
+		}
+
+		.masked.size16 {
+			width: 16px;
+			height: 16px;
+			-webkit-mask-size: 16px;
+			mask-size: 16px;
+		}
+
+		.masked.size96 {
+			width: 96px;
+			height: 96px;
+			-webkit-mask-size: 96px;
+			mask-size: 96px;
+			opacity: 0.9;
+		}
+
+		.caption {
+			margin: 6px 0 0;
+			font-size: 11px;
+			opacity: 0.7;
+		}
+
+		.big {
+			margin-top: 20px;
+			display: flex;
+			align-items: center;
+			gap: 16px;
+		}
+	</style>
+</head>
+<body>
+	<div class="themes">
+		<div class="pane dark">
+			<div class="bar">
+				<div class="cell active"><span class="masked size24"></span></div>
+				<div class="cell"><span class="masked size24"></span></div>
+				<div class="cell"><span class="masked size16"></span></div>
+			</div>
+			<p class="caption">深色主题：48px 格子、24px 正常、24px 悬停、16px 紧凑</p>
+		</div>
+		<div class="pane light">
+			<div class="bar">
+				<div class="cell active"><span class="masked size24"></span></div>
+				<div class="cell"><span class="masked size24"></span></div>
+				<div class="cell"><span class="masked size16"></span></div>
+			</div>
+			<p class="caption">浅色主题：同样三种尺寸</p>
+		</div>
+	</div>
+	<div class="big">
+		<span class="masked size96"></span>
+		<p class="caption">96px 放大看轮廓</p>
+	</div>
+</body>
+</html>

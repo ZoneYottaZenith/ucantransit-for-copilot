@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+	<meta charset="UTF-8" />
+	<title>UCanTransit 面板预览</title>
+	<style>
+		/* 模拟 VS Code 主题变量，仅用于本地检查排版与配色 */
+		html.dark {
+			--vscode-font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+			--vscode-font-size: 13px;
+			--vscode-foreground: #cccccc;
+			--vscode-descriptionForeground: #9d9d9d;
+			--vscode-background: #1f1f1f;
+			--vscode-sideBar-background: #181818;
+			--vscode-input-background: #313131;
+			--vscode-input-foreground: #cccccc;
+			--vscode-input-border: #3c3c3c;
+			--vscode-dropdown-background: #313131;
+			--vscode-dropdown-foreground: #cccccc;
+			--vscode-dropdown-border: #3c3c3c;
+			--vscode-button-background: #0078d4;
+			--vscode-button-foreground: #ffffff;
+			--vscode-button-hoverBackground: #026ec1;
+			--vscode-focusBorder: #0078d4;
+			--vscode-widget-border: #2b2b2b;
+			--vscode-widget-shadow: rgba(0, 0, 0, 0.36);
+			--vscode-badge-background: #616161;
+			--vscode-badge-foreground: #f8f8f8;
+			--vscode-textLink-foreground: #4daafc;
+			--vscode-errorForeground: #f85149;
+			--vscode-notifications-background: #1f1f1f;
+			--vscode-notifications-foreground: #cccccc;
+			--vscode-editor-font-family: "Cascadia Code", Consolas, monospace;
+		}
+
+		html.light {
+			--vscode-font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+			--vscode-font-size: 13px;
+			--vscode-foreground: #3b3b3b;
+			--vscode-descriptionForeground: #717171;
+			--vscode-background: #ffffff;
+			--vscode-sideBar-background: #f8f8f8;
+			--vscode-input-background: #ffffff;
+			--vscode-input-foreground: #3b3b3b;
+			--vscode-input-border: #cecece;
+			--vscode-dropdown-background: #ffffff;
+			--vscode-dropdown-foreground: #3b3b3b;
+			--vscode-dropdown-border: #cecece;
+			--vscode-button-background: #005fb8;
+			--vscode-button-foreground: #ffffff;
+			--vscode-button-hoverBackground: #0258a8;
+			--vscode-focusBorder: #005fb8;
+			--vscode-widget-border: #e5e5e5;
+			--vscode-widget-shadow: rgba(0, 0, 0, 0.16);
+			--vscode-badge-background: #cccccc;
+			--vscode-badge-foreground: #3b3b3b;
+			--vscode-textLink-foreground: #005fb8;
+			--vscode-errorForeground: #e51400;
+			--vscode-notifications-background: #ffffff;
+			--vscode-notifications-foreground: #3b3b3b;
+			--vscode-editor-font-family: "Cascadia Code", Consolas, monospace;
+		}
+
+		html.dark body,
+		body.dark {
+			background: var(--vscode-sideBar-background);
+		}
+
+		html.light body,
+		body.light {
+			background: var(--vscode-sideBar-background);
+		}
+
+		body {
+			font-family: var(--vscode-font-family);
+			font-size: var(--vscode-font-size);
+			color: var(--vscode-foreground);
+			margin: 0;
+		}
+
+		.switcher {
+			position: fixed;
+			top: 8px;
+			right: 8px;
+			z-index: 30;
+			display: flex;
+			gap: 6px;
+		}
+
+		.switcher button {
+			padding: 3px 8px;
+			font-size: 11px;
+			border-radius: 999px;
+			border: 1px solid var(--vscode-widget-border);
+			background: var(--vscode-input-background);
+			color: var(--vscode-foreground);
+			cursor: pointer;
+		}
+	</style>
+	<link rel="stylesheet" href="../../media/panel.css" />
+</head>
+<body class="dark">	<div class="switcher">
+		<button type="button" onclick="document.documentElement.className='dark'">深色</button>
+		<button type="button" onclick="document.documentElement.className='light'">浅色</button>
+	</div>
+
+	<div class="wrap">
+		<header class="brand">
+			<div class="brand-left">
+				<span class="logo" aria-hidden="true"></span>
+				<div class="brand-text">
+					<h1>UCanTransit</h1>
+					<p>把中转站模型接进 Copilot</p>
+				</div>
+			</div>
+			<label class="switch">
+				<input type="checkbox" checked />
+				<span class="track"></span>
+			</label>
+		</header>
+
+		<section class="panel-section">
+			<div class="section-head">
+				<span class="label">中转站</span>
+				<div class="head-actions">
+					<button class="chip-btn" type="button">新增</button>
+					<button class="chip-btn" type="button">移除</button>
+				</div>
+			</div>
+			<select>
+				<option>wanfaai.com</option>
+				<option>api.example.com</option>
+			</select>
+		</section>
+
+		<section class="card">
+			<div class="field">
+				<div class="field-head">
+					<label>站点名称</label>
+					<p class="hint">只是备注，用来区分多个中转站。</p>
+				</div>
+				<input type="text" value="wanfaai" placeholder="留空就用域名，比如：公司中转" />
+			</div>
+			<div class="field">
+				<div class="field-head">
+					<label>地址</label>
+					<p class="hint">填到 /v1 即可，模型列表路径会自动补全。</p>
+				</div>
+				<input type="text" value="https://wanfaai.com/v1" />
+			</div>
+			<div class="field">
+				<div class="field-head">
+					<label>API Key</label>
+					<p class="hint">当前密钥：sk-5••••2cfe，重新填写可覆盖。</p>
+				</div>
+				<div class="key-row">
+					<input type="password" placeholder="已保存 sk-5••••2cfe" />
+					<button class="chip-btn" type="button">显示</button>
+				</div>
+			</div>
+			<button class="primary" type="button">连接并读取模型</button>
+		</section>
+
+		<section class="status-row">
+			<span class="badge on">已注入 Copilot</span>
+			<span class="meta">8/8 启用 · 读取于 23:42</span>
+		</section>
+		<section class="models">
+			<div class="section-head">
+				<h2>模型<span class="count">8</span></h2>
+				<div class="head-actions">
+					<button class="chip-btn" type="button">全开</button>
+					<button class="chip-btn" type="button">全关</button>
+					<button class="chip-btn" type="button">刷新</button>
+				</div>
+			</div>
+			<div class="search-row">
+				<input class="search" type="text" placeholder="搜索模型" />
+				<span class="protocol-hint">协议可改</span>
+			</div>
+
+			<ul class="model-list">
+				<li class="model">
+					<div class="model-head">
+						<input class="model-check" type="checkbox" checked />
+						<span class="model-id">gpt-5.5</span>
+						<select class="model-protocol">
+							<option>Chat Completions</option>
+							<option selected>Responses</option>
+							<option>Anthropic Messages</option>
+							<option>Gemini</option>
+						</select>
+					</div>
+					<div class="model-body">
+						<span class="tag ctx">1.1M 上下文</span>
+						<span class="tag">工具</span>
+						<span class="tag">图片</span>
+						<span class="tag">推理</span>
+						<span class="tag manual">档位 xhigh/high/medium/low (手动)</span>
+					</div>
+				</li>
+				<li class="model">
+					<div class="model-head">
+						<input class="model-check" type="checkbox" checked />
+						<span class="model-id">claude-sonnet-4</span>
+						<select class="model-protocol">
+							<option>Chat Completions</option>
+							<option>Responses</option>
+							<option selected>Anthropic Messages</option>
+							<option>Gemini</option>
+						</select>
+					</div>
+					<div class="model-body">
+						<span class="tag ctx">200K 上下文</span>
+						<span class="tag">工具</span>
+						<span class="tag">图片</span>
+						<span class="tag">推理</span>
+					</div>
+				</li>
+				<li class="model">
+					<div class="model-head">
+						<input class="model-check" type="checkbox" />
+						<span class="model-id">gpt-reserve</span>
+						<button class="chip-btn effort-btn" type="button">设档位</button>
+						<select class="model-protocol">
+							<option selected>Chat Completions</option>
+							<option>Responses</option>
+							<option>Anthropic Messages</option>
+							<option>Gemini</option>
+						</select>
+					</div>
+					<div class="model-body">
+						<span class="tag ctx">128K 上下文</span>
+						<span class="tag">工具</span>
+						<span class="tag unknown">默认值</span>
+					</div>
+					<div class="effort-panel">
+						<label class="effort-option">
+							<input type="radio" name="effort-gpt-reserve" />
+							<span class="effort-option-text">max / xhigh / high / medium / low</span>
+							<span class="effort-source">来自 GPT-5.5</span>
+						</label>
+						<label class="effort-option active">
+							<input type="radio" name="effort-gpt-reserve" checked />
+							<span class="effort-option-text">low / medium / high</span>
+							<span class="effort-source">来自 Claude-Sonnet-4</span>
+						</label>
+					</div>
+				</li>
+			</ul>
+		</section>
+
+		<details class="advanced">
+			<summary>高级设置</summary>
+			<div class="advanced-body">
+				<div class="field inline">
+					<label>温度</label>
+					<input type="number" step="0.1" placeholder="默认" />
+				</div>
+				<div class="field inline">
+					<label>top_p</label>
+					<input type="number" step="0.05" placeholder="默认" />
+				</div>
+				<button class="chip-btn wide" type="button">保存默认参数</button>
+				<p class="hint">模型单独设置的参数优先；留空表示不发送该参数。</p>
+			</div>
+		</details>
+
+		<footer>
+			<button class="chip-btn" type="button">打开设置</button>
+			<button class="chip-btn danger" type="button">清空当前站点</button>
+		</footer>
+	</div>
+
+	<div class="toasts">
+		<div class="toast show">已接入 8 个模型（新增 2 个），你之前的设置都保留了。</div>
+	</div>
+</body>
+</html>

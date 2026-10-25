@@ -1,0 +1,12 @@
+.vscode/**
+node_modules/**
+src/**
+测试脚本/**
+out/**/*.map
+**/*.ts
+tsconfig.json
+package-lock.json
+*.vsix
+UCanTransit-logo.svg
+media/icon-nodes.backup.svg
+.gitignore

@@ -1,0 +1,688 @@
+/*
+ * 面板样式
+ *
+ * 配色只用三类来源，避免深浅主题下忽黑忽白：
+ * 1) VS Code 主题前景变量  2) 主题强调色（按钮/链接/焦点）  3) 中性半透明灰
+ * 间距按 4 / 8 / 12 / 16 四档走。
+ */
+:root {
+	--gap-xs: 4px;
+	--gap-sm: 8px;
+	--gap-md: 12px;
+	--gap-lg: 16px;
+	--radius: 6px;
+	--line: var(--vscode-widget-border, rgba(128, 128, 128, 0.28));
+	--surface: rgba(128, 128, 128, 0.07);
+	--surface-strong: rgba(128, 128, 128, 0.12);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	/* 派生色放在 body 上：主题变量定义在 html 层，这里求值时一定能拿到 */
+	--accent: var(--vscode-button-background, #0078d4);
+	--accent-text: var(--vscode-button-foreground, #ffffff);
+	margin: 0;
+	padding: var(--gap-md) var(--gap-md) var(--gap-lg);
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size, 13px);
+	color: var(--vscode-foreground);
+	background: transparent;
+	line-height: 1.5;
+}
+
+.wrap {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-md);
+	max-width: 560px;
+}
+
+/* 顶部 */
+.brand {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--gap-sm);
+}
+
+.brand-left {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	min-width: 0;
+}
+
+/* 顶部 logo：直接用同目录的 icon.svg 做 mask，颜色跟随主题前景色 */
+.logo {
+	flex: none;
+	width: 28px;
+	height: 28px;
+	background: currentColor;
+	opacity: 0.9;
+	mask: url("icon.svg") no-repeat 50% 50%;
+	mask-size: contain;
+	-webkit-mask: url("icon.svg") no-repeat 50% 50%;
+	-webkit-mask-size: contain;
+}
+
+.brand-text {
+	min-width: 0;
+}
+
+.brand-text h1 {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: 0.2px;
+}
+
+.brand-text p {
+	margin: 1px 0 0;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 开关 */
+.switch {
+	position: relative;
+	display: inline-flex;
+	flex: none;
+}
+
+.switch input {
+	position: absolute;
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.switch .track {
+	width: 34px;
+	height: 19px;
+	border-radius: 10px;
+	background: var(--surface-strong);
+	border: 1px solid var(--line);
+	position: relative;
+	cursor: pointer;
+	transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.switch .track::after {
+	content: "";
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 13px;
+	height: 13px;
+	border-radius: 50%;
+	background: var(--vscode-foreground);
+	opacity: 0.72;
+	transition: transform 0.16s ease, background 0.16s ease;
+}
+
+.switch input:checked + .track {
+	background: var(--accent);
+	border-color: transparent;
+}
+
+.switch input:checked + .track::after {
+	transform: translateX(15px);
+	background: var(--accent-text);
+	opacity: 1;
+}
+
+.switch input:focus-visible + .track {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+/* 通用分区头 */
+.section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--gap-sm);
+}
+
+.label,
+.section-head h2 {
+	margin: 0;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	color: var(--vscode-descriptionForeground);
+}
+
+.section-head h2 {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-xs);
+	text-transform: none;
+	font-size: 12px;
+	letter-spacing: 0;
+}
+
+.head-actions {
+	display: flex;
+	gap: var(--gap-xs);
+}
+
+/* 站点选择 */
+.panel-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+}
+
+/* 输入控件统一外观 */
+select,
+input[type="text"],
+input[type="password"],
+input[type="number"],
+.search {
+	width: 100%;
+	padding: 5px 8px;
+	font-family: var(--vscode-font-family);
+	font-size: 12px;
+	color: var(--vscode-input-foreground);
+	background: var(--vscode-input-background, var(--surface));
+	border: 1px solid var(--vscode-input-border, var(--line));
+	border-radius: var(--radius);
+	outline: none;
+	transition: border-color 0.14s ease;
+}
+
+select {
+	font-family: var(--vscode-font-family);
+	color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+	background: var(--vscode-dropdown-background, var(--vscode-input-background));
+	border-color: var(--vscode-dropdown-border, var(--line));
+}
+
+input[type="text"],
+input[type="password"] {
+	font-family: var(--vscode-editor-font-family, monospace);
+}
+
+select:focus,
+input:focus,
+.search:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* 按钮 */
+button.chip-btn {
+	padding: 2px 8px;
+	font-family: var(--vscode-font-family);
+	font-size: 11.5px;
+	line-height: 18px;
+	color: var(--vscode-foreground);
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	cursor: pointer;
+	transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+button.chip-btn:hover:not(:disabled) {
+	background: var(--surface-strong);
+	border-color: var(--vscode-focusBorder);
+}
+
+button.chip-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
+button.chip-btn.danger {
+	color: var(--vscode-errorForeground, #f14c4c);
+}
+
+button.chip-btn.wide {
+	width: 100%;
+	border-radius: var(--radius);
+}
+
+button.primary {
+	padding: 7px 10px;
+	font-family: var(--vscode-font-family);
+	font-size: 12.5px;
+	font-weight: 600;
+	color: var(--accent-text);
+	background: var(--accent);
+	border: none;
+	border-radius: var(--radius);
+	cursor: pointer;
+	transition: background 0.14s ease;
+}
+
+button.primary:hover:not(:disabled) {
+	background: var(--vscode-button-hoverBackground, var(--accent));
+}
+
+button.primary:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+/* 连接卡片 */
+.card {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: var(--gap-md);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface);
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+}
+
+/* 标题和它的提示同一行：提示紧跟在标题右边，两者之间用短横分隔 */
+.field-head {
+	display: flex;
+	align-items: baseline;
+	gap: 5px;
+}
+
+.field-head label {
+	flex: none;
+}
+
+.field-head .hint {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.field-head .hint::before {
+	content: "-";
+	margin-right: 5px;
+}
+
+.field label {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+}
+
+.field.inline {
+	flex-direction: row;
+	align-items: center;
+	gap: var(--gap-sm);
+}
+
+.field.inline label {
+	flex: none;
+	width: 42px;
+}
+
+.key-row {
+	display: flex;
+	gap: var(--gap-xs);
+	align-items: stretch;
+}
+
+.key-row input {
+	flex: 1;
+}
+
+.key-row button {
+	flex: none;
+}
+
+.hint {
+	margin: 0;
+	font-size: 10.5px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* 状态行 */
+.badge {
+	padding: 1px 8px;
+	font-size: 10.5px;
+	font-weight: 600;
+	border-radius: 999px;
+	border: 1px solid var(--line);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+.badge.on {
+	color: var(--accent-text);
+	background: var(--accent);
+	border-color: transparent;
+}
+
+.badge.error {
+	color: var(--vscode-errorForeground, #f14c4c);
+	border-color: var(--vscode-errorForeground, #f14c4c);
+}
+
+.meta {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+/* 模型列表 */
+.models {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-sm);
+}
+
+/* 标题、徽标、计数、按钮挤在一行，挤不下就让按钮换到下一行 */
+.models-head {
+	flex-wrap: wrap;
+	row-gap: 6px;
+}
+
+.models-head h2 {
+	flex: 0 0 auto;
+}
+
+.models-head .meta {
+	flex: 1 1 auto;
+}
+
+.models-head .head-actions {
+	margin-left: auto;
+}
+
+.search-row {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+}
+
+.search-row .search {
+	flex: 1;
+	min-width: 0;
+}
+
+.protocol-hint {
+	flex: none;
+	font-size: 10.5px;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 1px dashed var(--line);
+	cursor: help;
+}
+
+.model-list {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.model-list:empty {
+	display: none;
+}
+
+.model {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--line);
+	background: transparent;
+	transition: background 0.12s ease;
+}
+
+.model:hover {
+	background: var(--surface);
+}
+
+.model:last-child {
+	border-bottom: none;
+}
+
+.model-head {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+}
+
+.model-check {
+	flex: none;
+	width: 13px;
+	height: 13px;
+	margin: 0;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
+
+.model-id {
+	flex: 1;
+	min-width: 0;
+	font-family: var(--vscode-editor-font-family, monospace);
+	font-size: 11.5px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-protocol {
+	flex: none;
+	width: auto;
+	max-width: 150px;
+	padding: 1px 4px;
+	font-size: 10.5px;
+	border-radius: 4px;
+}
+
+.model-body {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--gap-xs);
+	padding-left: 21px;
+}
+
+.tag {
+	padding: 0 5px;
+	font-size: 10px;
+	line-height: 15px;
+	border-radius: 3px;
+	color: var(--vscode-descriptionForeground);
+	background: var(--surface-strong);
+	white-space: nowrap;
+}
+
+.tag.ctx {
+	color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+	background: transparent;
+	padding: 0;
+}
+
+.tag.unknown {
+	opacity: 0.75;
+}
+
+.tag.manual {
+	color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+	border: 1px dashed var(--line);
+	background: transparent;
+}
+
+/* 档位套用：按钮在协议下拉左边，面板在行下方展开 */
+.effort-btn {
+	flex: none;
+	padding: 1px 6px;
+	font-size: 10.5px;
+	line-height: 16px;
+}
+
+.effort-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-left: 21px;
+	padding: var(--gap-xs);
+	border: 1px solid var(--line);
+	border-radius: var(--radius);
+	background: var(--surface);
+}
+
+.effort-panel[hidden] {
+	display: none;
+}
+
+.effort-option {
+	display: flex;
+	align-items: center;
+	gap: var(--gap-sm);
+	padding: 4px 6px;
+	font-size: 11px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.effort-option:hover {
+	background: var(--surface-strong);
+}
+
+.effort-option.active {
+	background: var(--surface-strong);
+	border-color: var(--vscode-focusBorder, var(--accent));
+}
+
+.effort-option input[type="radio"] {
+	flex: none;
+	width: 12px;
+	height: 12px;
+	margin: 0;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
+
+.effort-option-text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.effort-option .effort-source {
+	flex: none;
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 45%;
+}
+
+.effort-option.reset {
+	color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+	border-top: 1px solid var(--line);
+	border-radius: 0 0 4px 4px;
+	margin-top: 2px;
+	padding-top: 5px;
+}
+
+.empty {
+	margin: 0;
+	padding: var(--gap-md);
+	font-size: 11.5px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+	border: 1px dashed var(--line);
+	border-radius: 8px;
+}
+
+footer {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--gap-sm);
+	padding-top: 2px;
+}
+
+/* 提示条 */
+.toasts {
+	position: fixed;
+	left: 50%;
+	bottom: var(--gap-lg);
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap-xs);
+	width: calc(100% - 32px);
+	max-width: 420px;
+	pointer-events: none;
+	z-index: 20;
+}
+
+.toast {
+	padding: 7px 10px;
+	font-size: 11.5px;
+	color: var(--vscode-notifications-foreground, var(--vscode-foreground));
+	background: var(--vscode-notifications-background, var(--vscode-editorWidget-background));
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--vscode-focusBorder, var(--accent));
+	border-radius: var(--radius);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.28));
+	opacity: 0;
+	transform: translateY(6px);
+	transition: opacity 0.18s ease, transform 0.18s ease;
+	word-break: break-word;
+}
+
+.toast.show {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.toast.success {
+	border-left-color: var(--vscode-testing-iconPassed, var(--accent));
+}
+
+.toast.error {
+	border-left-color: var(--vscode-errorForeground, #f14c4c);
+}
+
+/* 切换站点时，变化的那几块淡入一次，代替硬切 */
+@keyframes site-swap-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.site-swap {
+	animation: site-swap-in 0.2s ease-out;
+}
+
+/* 系统开了“减少动态效果”就不跑动画 */
+@media (prefers-reduced-motion: reduce) {
+	.site-swap {
+		animation: none;
+	}
+}
