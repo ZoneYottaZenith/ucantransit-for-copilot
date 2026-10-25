@@ -24,7 +24,7 @@ Copilot 的聊天界面、Agent 模式、工具调用、指令与 Skills 全部�
 <p align="center"><sub>侧边栏面板：填地址与 Key，勾选要注入的模型</sub></p>
 
 <p align="center">
-  <img src="resources/screenshots/model-picker.png" alt="Copilot 模型选择器里的中转站模型" width="760">
+  <img src="resources/screenshots/copilot-model-picker.png" alt="Copilot 模型选择器里的中转站模型" width="760">
 </p>
 <p align="center"><sub>模型选择器：<code>[站点] 模型</code>，同站模型排在一起</sub></p>
 
