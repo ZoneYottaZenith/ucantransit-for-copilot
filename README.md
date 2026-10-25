@@ -19,12 +19,12 @@ Copilot 的聊天界面、Agent 模式、工具调用、指令与 Skills 全部�
 **关于插件名字。** `UCanTransit` 读作 *U Can Transit*，取「你也能中转」的意思：请求在你和任意上游之间透明转接，模型照旧出现在 Copilot 原生的选择器里。`for Copilot` 则划清边界——它是给 Copilot 增配，不是另一个聊天客户端。
 
 <p align="center">
-  <img src="resources/screenshots/panel.png" alt="UCanTransit 侧边栏面板" width="820">
+  <img src="resources/screenshots/panel.png" alt="UCanTransit 侧边栏面板" width="760">
 </p>
 <p align="center"><sub>侧边栏面板：填地址与 Key，勾选要注入的模型</sub></p>
 
 <p align="center">
-  <img src="resources/screenshots/model-picker.png" alt="Copilot 模型选择器里的中转站模型" width="640">
+  <img src="resources/screenshots/model-picker.png" alt="Copilot 模型选择器里的中转站模型" width="760">
 </p>
 <p align="center"><sub>模型选择器：<code>[站点] 模型</code>，同站模型排在一起</sub></p>
 
