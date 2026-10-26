@@ -2,6 +2,8 @@
 
 > **填入 URL 与 API Key，任意中转站或官方 API 端点立刻出现在 GitHub Copilot 的模型选择器里。**
 
+**不想自己编译？直接下载安装包** → [Releases 页面](https://github.com/ZoneYottaZenith/ucantransit-for-copilot/releases/latest) 下载 `.vsix`，然后 `code --install-extension <文件名>.vsix`，或在扩展视图右上角「…」→「从 VSIX 安装」。
+
 零配置：不用选协议、不用挑能力、不用维护模型清单。第三方中转站、官方 API、自建网关都能接——OpenAI Responses、OpenAI Chat Completions、Anthropic Messages、Gemini 四种形态按模型自动匹配，一个地址加一把 Key 就能用。
 
 ## 不是替换 Copilot，而是增强它
