@@ -19,12 +19,67 @@ interface OpenAIMessage {
 	content?: string | unknown[];
 	tool_calls?: Array<{ id: string; type: "function"; function: { name: string; arguments: string } }>;
 	tool_call_id?: string;
+	/** 只在开关打开时回传，个别线路靠它保持多轮思考上下文。 */
+	reasoning_content?: string;
+}
+
+/** 读一个配置项；拿不到环境（比如自检脚本里没有 workspace）就走默认值。 */
+function setting<T>(key: string, fallback: T): T {
+	try {
+		return vscode.workspace.getConfiguration("ucantransit").get<T>(key, fallback);
+	} catch {
+		return fallback;
+	}
+}
+
+/** assistant 消息是否把上一轮的思考内容带回去；默认关闭，多一条字段就多一分被拒的风险。 */
+function withReasoning(): boolean {
+	return setting("includeReasoningInRequest", false);
+}
+
+/** read_file 没指定行数时补上默认行数；默认 0 表示什么都不动。 */
+function applyReadFileDefaults(
+	toolName: string,
+	parameters: Record<string, unknown>
+): Record<string, unknown> {
+	if (toolName !== "read_file") {
+		return parameters;
+	}
+	const defaultLines = setting("readFileLines", 0);
+	if (defaultLines <= 0) {
+		return parameters;
+	}
+	const startLine = typeof parameters.startLine === "number" ? parameters.startLine : 1;
+	const endLine = typeof parameters.endLine === "number" ? parameters.endLine : startLine;
+	return endLine < startLine + defaultLines ? { ...parameters, endLine: startLine + defaultLines } : parameters;
+}
+
+const ThinkingPartClass = (
+	vscode as unknown as {
+		LanguageModelThinkingPart?: new (value: string | string[]) => unknown;
+	}
+).LanguageModelThinkingPart;
+
+/** 取出思考 part 的正文；不是思考 part 就返回 undefined。 */
+function thinkingText(part: unknown): string | undefined {
+	if (!ThinkingPartClass || !(part instanceof ThinkingPartClass)) {
+		return undefined;
+	}
+	const value = (part as { value?: unknown }).value;
+	if (typeof value === "string") {
+		return value;
+	}
+	if (Array.isArray(value)) {
+		return value.filter((item): item is string => typeof item === "string").join("");
+	}
+	return undefined;
 }
 
 export function convertMessages(
 	messages: readonly vscode.LanguageModelChatRequestMessage[]
 ): OpenAIMessage[] {
 	const out: OpenAIMessage[] = [];
+	const wantReasoning = withReasoning();
 
 	for (const message of messages) {
 		const role = mapRole(message);
@@ -32,9 +87,13 @@ export function convertMessages(
 		const images: vscode.LanguageModelDataPart[] = [];
 		const toolCalls: NonNullable<OpenAIMessage["tool_calls"]> = [];
 		const toolResults: Array<{ callId: string; content: string }> = [];
+		const thinking: string[] = [];
 
 		for (const part of message.content ?? []) {
-			if (part instanceof vscode.LanguageModelTextPart) {
+			const reasoning = wantReasoning ? thinkingText(part) : undefined;
+			if (reasoning !== undefined) {
+				thinking.push(reasoning);
+			} else if (part instanceof vscode.LanguageModelTextPart) {
 				texts.push(part.value);
 			} else if (isImagePart(part)) {
 				images.push(part);
@@ -58,6 +117,10 @@ export function convertMessages(
 			}
 			if (toolCalls.length > 0) {
 				assistant.tool_calls = toolCalls;
+			}
+			if (wantReasoning) {
+				// 没收到思考内容时给个占位，个别线路要求这个字段不能为空
+				assistant.reasoning_content = thinking.join("") || "Next step.";
 			}
 			out.push(assistant);
 		}
@@ -241,24 +304,35 @@ export class OpenAIChatProtocol implements Protocol {
 		const pending = new Map<number, { id?: string; name?: string; args: string }>();
 		const done = new Set<number>();
 		let latestUsage: TokenUsage | undefined;
+		let hinted = false;
 
-		const flush = (index: number): void => {
+		// final 为 false 时，只发「参数已经拼成合法 JSON」的调用。
+		// 上游往往先送 id + name（arguments 还是空串），那一刻就发等于把后面的参数全丢掉。
+		const flush = (index: number, final = false): void => {
 			const call = pending.get(index);
 			if (!call || done.has(index) || !call.name) {
+				return;
+			}
+			// 参数还没开始送，除非流已经结束，否则再等等
+			if (!call.args.trim() && !final) {
 				return;
 			}
 			const input = parseJsonObject(call.args);
 			if (!input) {
 				return;
 			}
-			request.reporter.toolCall(call.id ?? `call_${Math.random().toString(36).slice(2, 10)}`, call.name, input);
+			request.reporter.toolCall(
+				call.id ?? `call_${Math.random().toString(36).slice(2, 10)}`,
+				call.name,
+				applyReadFileDefaults(call.name, input)
+			);
 			done.add(index);
 			pending.delete(index);
 		};
 
-		const flushAll = (): void => {
+		const flushAll = (final = false): void => {
 			for (const index of Array.from(pending.keys())) {
-				flush(index);
+				flush(index, final);
 			}
 		};
 
@@ -288,6 +362,11 @@ export class OpenAIChatProtocol implements Protocol {
 
 			const calls = delta?.tool_calls as Array<Record<string, unknown>> | undefined;
 			if (Array.isArray(calls)) {
+				// 已经吐过正文又转进工具调用，补一个空格把上层正文缓冲冲干净（02 的同一做法）
+				if (!hinted && request.reporter.hasText && calls.length > 0) {
+					request.reporter.text(" ");
+					hinted = true;
+				}
 				for (const call of calls) {
 					const index = typeof call.index === "number" ? call.index : 0;
 					const entry = pending.get(index) ?? { args: "" };
@@ -308,11 +387,11 @@ export class OpenAIChatProtocol implements Protocol {
 
 			const finish = choice.finish_reason;
 			if (finish === "tool_calls" || finish === "stop") {
-				flushAll();
+				flushAll(true);
 			}
 		});
 
-		flushAll();
+		flushAll(true);
 		// 流结束后统一上报一次，用量只在最后一个 chunk 里给全
 		request.reporter.usage(latestUsage);
 		if (latestUsage) {

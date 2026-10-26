@@ -3,7 +3,7 @@
  *
  * 原来的 logo 是浅灰（#e7e8ed）配橙，放在白色背景的市场页面上几乎看不见。
  * 这里只做配色和背景，形状一条 path 都不改：
- * 1) 垫一个深色圆角底，白底、深底两套主题下都有对比度
+ * 1) 垫一个深色直角底，白底和深底两套主题下都有对比度
  * 2) 浅灰部分换成接近白的 #F2F3F5
  * 3) 橙色 #FBB430 原样保留
  * 4) 整体内缩 8%，免得图形顶到圆角边
@@ -43,7 +43,7 @@ if (inner.includes("#e7e8ed")) {
 
 const svg = [
 	'<svg xmlns="http://www.w3.org/2000/svg" width="564" height="564" viewBox="0 0 564 564" version="1.1">',
-	`<rect x="0" y="0" width="564" height="564" rx="108" ry="108" fill="${BACKGROUND}"/>`,
+	`<rect x="0" y="0" width="564" height="564" fill="${BACKGROUND}"/>`,
 	`<g transform="translate(45.12 45.12) scale(0.84)">${inner}</g>`,
 	"</svg>",
 	"",

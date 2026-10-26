@@ -204,7 +204,8 @@ async function main() {
 
 	try {
 		const openaiParts = collect(await run(openai, "openai", openai.port));
-		check("openai：文本", openaiParts.text === "你好", openaiParts.text);
+		// 这段流里正文后面紧跟工具调用，按 02 的做法会补一个空格冲刷正文缓冲，所以末尾多一格
+		check("openai：文本", openaiParts.text === "你好 ", openaiParts.text);
 		check("openai：思考内容", openaiParts.thinking.includes("想一下"), openaiParts.thinking);
 		check("openai：工具调用", openaiParts.calls[0]?.name === "read_file" && openaiParts.calls[0]?.input.path === "a.txt", JSON.stringify(openaiParts.calls));
 

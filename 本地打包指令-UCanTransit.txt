@@ -2,7 +2,7 @@
 # 生成的 ZIP 只含源码与打包好的 vsix，不含依赖、编译产物和 git 历史
 
 cd "/mnt/d/Software/IDE/VSCode/Code/Test/001/做一个中转插件/UCanTransit for Copilot" && \
-zip -r "/mnt/d/Software/IDE/VSCode/Code/Test/001/做一个中转插件/UCanTransit for Copilot/UCanTransit-for-Copilot-0.6.0源码-261025.zip" \
+zip -r "/mnt/d/Software/IDE/VSCode/Code/Test/001/做一个中转插件/UCanTransit for Copilot/UCanTransit-for-Copilot-0.6.3源码-261026.zip" \
   . \
   -x "node_modules/*" \
   -x "*/node_modules/*" \

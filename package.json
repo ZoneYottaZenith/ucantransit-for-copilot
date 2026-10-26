@@ -2,7 +2,7 @@
   "name": "ucantransit",
   "displayName": "UCanTransit for Copilot",
   "description": "填入调用端点地址 URL 与 API Key，即可把任意中转站或官方 API 接入 GitHub Copilot Chat；自动识别 OpenAI、Anthropic、Gemini 协议，支持多站点并行。",
-  "version": "0.6.3",
+  "version": "0.6.6",
   "publisher": "ZoneYottaZenith",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -133,6 +133,16 @@
           "type": "string",
           "default": "",
           "description": "中转站基础地址，例如 https://api.example.com/v1。由面板写入，通常无需手动修改。"
+        },
+        "ucantransit.readFileLines": {
+          "type": "number",
+          "default": 0,
+          "description": "模型调用 read_file 时没指定行数就补上这么多行，避免一次只读到一行。0 表示不干预。"
+        },
+        "ucantransit.includeReasoningInRequest": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "把上一轮的思考内容作为 `reasoning_content` 回传给上游，个别线路靠它保持多轮思考上下文。默认关闭：多数线路不需要，多了这个字段反而可能被拒。"
         },
         "ucantransit.models": {
           "type": "array",

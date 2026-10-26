@@ -50,6 +50,7 @@ export function readUsage(raw: unknown): TokenUsage | undefined {
  */
 export class Reporter {
 	private wrote = false;
+	private textWrote = false;
 
 	constructor(private readonly progress: vscode.Progress<vscode.LanguageModelResponsePart>) {}
 
@@ -58,11 +59,17 @@ export class Reporter {
 		return this.wrote;
 	}
 
+	/** 已经送过正文（不算思考）。工具调用前要靠它决定要不要补个空格。 */
+	get hasText(): boolean {
+		return this.textWrote;
+	}
+
 	text(value: string): void {
 		if (!value) {
 			return;
 		}
 		this.wrote = true;
+		this.textWrote = true;
 		this.progress.report(new vscode.LanguageModelTextPart(value));
 	}
 
