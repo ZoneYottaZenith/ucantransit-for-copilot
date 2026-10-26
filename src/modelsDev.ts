@@ -15,13 +15,14 @@ export interface ModelInfo {
 	toolCalling: boolean;
 	reasoning: boolean;
 	contextLength?: number;
+	outputLength?: number;
 }
 
 interface RawModel {
 	modalities?: { input?: string[]; output?: string[] };
 	tool_call?: boolean;
 	reasoning?: boolean;
-	limit?: { context?: number };
+	limit?: { context?: number; output?: number };
 	canonical_model_id?: string;
 }
 
@@ -37,6 +38,7 @@ interface Votes {
 	tool: number;
 	reasoning: number;
 	contexts: Map<number, number>;
+	outputs: Map<number, number>;
 }
 
 class ModelVotes implements Votes {
@@ -46,6 +48,7 @@ class ModelVotes implements Votes {
 	tool = 0;
 	reasoning = 0;
 	contexts = new Map<number, number>();
+	outputs = new Map<number, number>();
 
 	add(model: RawModel): void {
 		this.total += 1;
@@ -65,6 +68,10 @@ class ModelVotes implements Votes {
 		if (typeof context === "number" && context > 0) {
 			this.contexts.set(context, (this.contexts.get(context) ?? 0) + 1);
 		}
+		const output = model.limit?.output;
+		if (typeof output === "number" && output > 0) {
+			this.outputs.set(output, (this.outputs.get(output) ?? 0) + 1);
+		}
 	}
 
 	private majority(count: number): boolean {
@@ -81,12 +88,22 @@ class ModelVotes implements Votes {
 				bestCount = count;
 			}
 		}
+		let bestOutput: number | undefined;
+		let bestOutputCount = 0;
+		for (const [value, count] of this.outputs) {
+			// 同上，票数相同取更大的输出上限
+			if (count > bestOutputCount || (count === bestOutputCount && bestOutput !== undefined && value > bestOutput)) {
+				bestOutput = value;
+				bestOutputCount = count;
+			}
+		}
 		return {
 			inputImage: this.majority(this.imageInput),
 			outputImage: this.majority(this.imageOutput),
 			toolCalling: this.majority(this.tool),
 			reasoning: this.majority(this.reasoning),
 			contextLength: bestContext,
+			outputLength: bestOutput,
 		};
 	}
 }

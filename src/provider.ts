@@ -1,8 +1,11 @@
 import * as vscode from "vscode";
-import { getActiveSite, getApiKey, getModels, getSites, isEnabled, setModelProtocol } from "./config";
+import { getActiveSite, getApiKey, getModels, getSites, isEnabled, markModelUnsupported, setModelProtocol } from "./config";
 import { Reporter } from "./report";
+import { describeNetworkError } from "./http";
+import { TokenRatio } from "./tokenRatio";
 import { PROTOCOL_LABELS, guessProtocol, sendChat } from "./protocols";
 import type { ChatRequest } from "./protocols";
+import { safeJson } from "./protocols/types";
 import type { ModelEntry, SiteEntry } from "./types";
 
 const FAMILY = "ucantransit";
@@ -50,6 +53,20 @@ function effortDescription(effort: string): string | undefined {
 /** 输出预算：够用又不至于撑爆上下文。 */
 function outputBudget(contextLength: number): number {
 	return Math.min(8192, Math.max(1024, Math.floor(contextLength / 8)));
+}
+
+/**
+ * 请求体里该给多少输出额度。
+ *
+ * 模型自己声明了上限就照发；没有就返回 undefined，不发这个字段，
+ * 交给上游按自己的默认值来。写死一个数只会把长回答提前截断，
+ * 思考模型的思考内容也算在这个额度里。
+ */
+function requestOutputLimit(entry: ModelEntry | undefined): number | undefined {
+	if (entry?.outputLength && entry.outputLength > 0) {
+		return entry.outputLength;
+	}
+	return undefined;
 }
 
 /** 上下文长度写成人看的形式，超过一百万用 M。 */
@@ -119,6 +136,38 @@ function estimateTokens(text: string): number {
 	const cjk = (text.match(/[\u3400-\u9fff\uf900-\ufaff]/g) ?? []).length;
 	const rest = text.length - cjk;
 	return Math.max(1, Math.ceil(cjk / 1.5 + rest / 4));
+}
+
+/**
+ * 粗略统计这次请求发出的字符数，给 token 校准当分母。
+ *
+ * 图片不是文本，直接把 base64 算进去会把系数彻底带偏，所以跳过 DataPart。
+ */
+function countRequestChars(
+	messages: readonly vscode.LanguageModelChatRequestMessage[],
+	tools: readonly vscode.LanguageModelChatTool[] | undefined
+): number {
+	let total = 0;
+	for (const message of messages) {
+		for (const part of message.content ?? []) {
+			if (part instanceof vscode.LanguageModelTextPart) {
+				total += part.value.length;
+			} else if (typeof part === "string") {
+				total += part.length;
+			} else if (part instanceof vscode.LanguageModelDataPart) {
+				continue;
+			} else if (part instanceof vscode.LanguageModelToolCallPart) {
+				total += (part.name ?? "").length + safeJson(part.input ?? {}).length;
+			} else {
+				// 工具结果等结构，按 JSON 长度算个大概
+				total += safeJson(part).length;
+			}
+		}
+	}
+	for (const tool of tools ?? []) {
+		total += tool.name.length + (tool.description ?? "").length + safeJson(tool.inputSchema ?? {}).length;
+	}
+	return total;
 }
 
 export function reasoningEffortFrom(options: vscode.ProvideLanguageModelChatResponseOptions): string | undefined {
@@ -194,7 +243,12 @@ export class TransitModelProvider implements vscode.LanguageModelChatProvider {
 
 	readonly onDidChangeLanguageModelChatInformation = this.emitter.event;
 
-	constructor(private readonly secrets: vscode.SecretStorage) {}
+	constructor(private readonly secrets: vscode.SecretStorage, globalState: vscode.Memento) {
+		this.ratio = new TokenRatio(globalState);
+	}
+
+	/** 当前「每 token 多少字符」的校准系数。 */
+	private readonly ratio: TokenRatio;
 
 	refresh(): void {
 		this.emitter.fire();
@@ -295,13 +349,23 @@ export class TransitModelProvider implements vscode.LanguageModelChatProvider {
 			messages,
 			tools: options.tools,
 			toolMode: options.toolMode,
-			maxOutputTokens: outputBudget(entry?.contextLength ?? 128_000),
+			maxOutputTokens: requestOutputLimit(entry),
 			temperature: entry?.temperature,
 			topP: entry?.topP,
 			reasoningEffort: reasoningEffortFrom(options) ?? entry?.defaultEffort,
 			extra: entry?.extra,
 			signal: controller.signal,
 			reporter,
+			thinkingUnsupported: entry?.thinkingUnsupported,
+			toolUnsupported: entry?.toolUnsupported,
+			// 上游拒了就记下来，下次这条线路不再带这个字段（刷新模型列表会清掉）
+			onDowngrade: (field) => {
+				void markModelUnsupported(site.id, modelId, field).then(() => this.refresh());
+			},
+			// 拿到真实用量就校准一次估算系数
+			onUsage: (usage) => {
+				void this.ratio.observe(countRequestChars(messages, options.tools), usage.promptTokens);
+			},
 		};
 
 		try {
@@ -323,7 +387,8 @@ export class TransitModelProvider implements vscode.LanguageModelChatProvider {
 				return;
 			}
 			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`UCanTransit 请求失败：${message}`);
+			const hint = describeNetworkError(error);
+			throw new Error(hint ? `UCanTransit 请求失败：${hint}（${message}）` : `UCanTransit 请求失败：${message}`);
 		} finally {
 			cancellation.dispose();
 		}
@@ -334,14 +399,14 @@ export class TransitModelProvider implements vscode.LanguageModelChatProvider {
 		text: string | vscode.LanguageModelChatRequestMessage
 	): Promise<number> {
 		if (typeof text === "string") {
-			return estimateTokens(text);
+			return this.ratio.estimate(text);
 		}
 		let total = 0;
 		for (const part of text.content ?? []) {
 			if (part instanceof vscode.LanguageModelTextPart) {
-				total += estimateTokens(part.value);
+				total += this.ratio.estimate(part.value);
 			} else if (typeof part === "string") {
-				total += estimateTokens(part);
+				total += this.ratio.estimate(part);
 			}
 		}
 		return Math.max(1, total);

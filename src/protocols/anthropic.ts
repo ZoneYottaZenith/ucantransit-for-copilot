@@ -89,9 +89,11 @@ export class AnthropicProtocol implements Protocol {
 			}
 		}
 
+		// Anthropic 这个字段必填，拿不到模型上限时只能给个保底值
+		const outputLimit = request.maxOutputTokens ?? 8192;
 		const body: Record<string, unknown> = {
 			model: request.modelId,
-			max_tokens: request.maxOutputTokens,
+			max_tokens: outputLimit,
 			messages,
 			stream: true,
 		};
@@ -108,8 +110,8 @@ export class AnthropicProtocol implements Protocol {
 		// 开了 thinking 时 Anthropic 要求 temperature 固定，这里干脆不发
 		const wantsThinking = Boolean(request.reasoningEffort && request.reasoningEffort !== "none");
 		if (wantsThinking) {
-			const budget = Math.min(16_000, Math.max(1024, Math.floor(request.maxOutputTokens / 2)));
-			if (budget < request.maxOutputTokens) {
+			const budget = Math.min(16_000, Math.max(1024, Math.floor(outputLimit / 2)));
+			if (budget < outputLimit) {
 				body.thinking = { type: "enabled", budget_tokens: budget };
 			}
 		} else if (request.temperature !== undefined) {
@@ -132,7 +134,6 @@ export class AnthropicProtocol implements Protocol {
 				body: JSON.stringify(body),
 			},
 			signal: request.signal,
-			timeoutMs: 120_000,
 		});
 
 		if (!response.ok) {

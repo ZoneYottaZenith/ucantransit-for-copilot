@@ -7,6 +7,9 @@ out/**/*.map
 tsconfig.json
 package-lock.json
 *.vsix
+*.zip
+本地打包指令*.txt
+发布到VS Code插件市场流程*.md
 UCanTransit-logo.svg
 media/icon-nodes.backup.svg
 resources/**

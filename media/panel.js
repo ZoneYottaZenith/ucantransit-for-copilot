@@ -339,6 +339,13 @@ function renderModels(models) {
 		if (model.source !== "models.dev") {
 			body.appendChild(makeTag(model.source === "heuristic" ? "按名称推断" : "默认值", "unknown"));
 		}
+		// 对话时被上游拒过的参数，之后就不发了；刷新模型列表会重新尝试
+		if (model.thinkingUnsupported || model.toolUnsupported) {
+			const blocked = [model.thinkingUnsupported ? "思考" : "", model.toolUnsupported ? "工具" : ""]
+				.filter(Boolean)
+				.join("/");
+			body.appendChild(makeTag(`线路拒绝${blocked}参数`, "unknown"));
+		}
 		item.appendChild(body);
 
 		if (effort) {
@@ -357,8 +364,9 @@ function render(next) {
 	lastSiteId = next.activeSiteId;
 	state = next;
 
-	// 一次读取结束（成功或失败）就退出"新增中"，否则按钮文案会一直挂着"添加"
-	if (previousStatus === "scanning" && next.status !== "scanning") {
+	// 只有真正建成了才退出「新增中」；失败就留着，
+	// 否则会把上一个站点的「已保存 xxx」又顶回来
+	if (previousStatus === "scanning" && next.status === "ready") {
 		addingNew = false;
 	}
 
@@ -455,6 +463,8 @@ ui.connect.addEventListener("click", () => {
 		baseUrl,
 		apiKey: ui.apiKey.value.trim(),
 		siteName: ui.siteName.value.trim(),
+		// 告诉后端这是「新增」：地址和当前站点一样也要建新站点
+		asNew: addingNew,
 	});
 });
 
@@ -488,6 +498,9 @@ ui.newSite.addEventListener("click", () => {
 	ui.siteNameHint.textContent = "新站点的名字，留空就用域名。";
 	ui.urlHint.textContent = "填新中转站的地址，连接后会自动建一个站点。";
 	ui.keyHint.textContent = "新站点的密钥会单独保存。";
+	ui.apiKey.placeholder = "sk-...";
+	// 进入新建态时淡入一次，跟切站点用同一套过渡
+	playSiteSwap();
 	toast("填好地址和 Key，点下面的按钮就会新增一个站点");
 });
 

@@ -9,6 +9,8 @@ export interface ModelEntry {
 	id: string;
 	name: string;
 	contextLength: number;
+	/** 模型自己声明的最大输出量（models.dev 的 limit.output）。没有就不限制，交给上游默认值。 */
+	outputLength?: number;
 	toolCalling: boolean;
 	vision: boolean;
 	reasoning: boolean;
@@ -28,6 +30,10 @@ export interface ModelEntry {
 	topP?: number;
 	/** 追加到请求体的字段。 */
 	extra?: Record<string, unknown>;
+	/** 实测这条线路不认思考参数（400 后自动记下）；刷新模型列表会清掉。 */
+	thinkingUnsupported?: boolean;
+	/** 实测这条线路不认工具定义（400 后自动记下）；刷新模型列表会清掉。 */
+	toolUnsupported?: boolean;
 }
 
 /** 一个中转站。 */
@@ -60,7 +66,7 @@ export interface PanelState {
 /** 面板发给扩展宿主的消息。 */
 export type PanelInbound =
 	| { type: "ready" }
-	| { type: "connect"; baseUrl: string; apiKey: string; siteName?: string }
+	| { type: "connect"; baseUrl: string; apiKey: string; siteName?: string; asNew?: boolean }
 	| { type: "rescan" }
 	| { type: "setEnabled"; enabled: boolean }
 	| { type: "clear" }

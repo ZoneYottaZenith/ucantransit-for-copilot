@@ -224,6 +224,31 @@ export async function setModelProtocol(
 	return target;
 }
 
+/**
+ * 记下某条线路实测不接受的字段。
+ *
+ * 只做加法：上游一旦拒过某个参数，下次就不带它，省掉那一轮失败重发。
+ * 这些标记不在刷新时保留（扫描重建模型列表会自然丢掉），
+ * 所以线路改好了、或者换了一家中转，刷新一次就重新尝试。
+ */
+export async function markModelUnsupported(
+	siteId: string,
+	modelId: string,
+	field: "thinking" | "tools"
+): Promise<void> {
+	const models = getModels(siteId);
+	const target = models.find((model) => model.id === modelId);
+	if (!target) {
+		return;
+	}
+	if (field === "thinking") {
+		target.thinkingUnsupported = true;
+	} else {
+		target.toolUnsupported = true;
+	}
+	await saveModels(siteId, models);
+}
+
 export async function getApiKey(secrets: vscode.SecretStorage, siteId: string): Promise<string | undefined> {	const own = await secrets.get(`${SECRET_PREFIX}.${siteId}`);
 	if (own && own.trim()) {
 		return own.trim();

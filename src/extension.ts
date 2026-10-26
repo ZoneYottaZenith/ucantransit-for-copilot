@@ -10,7 +10,7 @@ import { ReasoningCatalog } from "./reasoningCatalog";
  * 不修改任何 Copilot 自身的设置或文件。
  */
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-	const provider = new TransitModelProvider(context.secrets);
+	const provider = new TransitModelProvider(context.secrets, context.globalState);
 	context.subscriptions.push(provider);
 
 	context.subscriptions.push(

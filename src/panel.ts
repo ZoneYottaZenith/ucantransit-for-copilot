@@ -96,7 +96,7 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 				await this.pushState();
 				break;
 			case "connect":
-				await this.connect(message.baseUrl, message.apiKey, message.siteName);
+				await this.connect(message.baseUrl, message.apiKey, message.siteName, message.asNew === true);
 				break;
 			case "rescan":
 				await this.rescan();
@@ -157,7 +157,8 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 	private async connect(
 		rawBaseUrl: string,
 		rawApiKey: string,
-		rawSiteName: string | undefined
+		rawSiteName: string | undefined,
+		asNew: boolean
 	): Promise<void> {
 		if (this.scanning) {
 			return;
@@ -171,11 +172,10 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 		}
 
 		const current = getActiveSite();
-		// 同一个地址视为“更新现有站点”，否则新建
-		const siteId =
-			current && current.baseUrl.replace(/\/+$/, "") === baseUrl
-				? current.id
-				: `site-${Date.now().toString(36)}`;
+		// 明确点「新增」时一律建新站点：地址相同也允许，因为换一把 Key 就是另一套模型。
+		// 没点新增时，地址相同就当成更新当前站点，免得以为是覆盖其实是复制。
+		const sameAddress = Boolean(current) && current!.baseUrl.replace(/\/+$/, "") === baseUrl;
+		const siteId = asNew || !sameAddress ? `site-${Date.now().toString(36)}` : current!.id;
 
 		const apiKey = rawApiKey.trim() || (await getApiKey(this.secrets, siteId)) || "";
 		if (!apiKey) {
@@ -188,7 +188,8 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 		await this.runScan(
 			{
 				id: siteId,
-				name: rawSiteName?.trim() || current?.name || hostOf(baseUrl),
+				// 新建时不要把上一个站点的名字带过来
+				name: rawSiteName?.trim() || (sameAddress && !asNew ? current?.name : undefined) || hostOf(baseUrl),
 				baseUrl,
 			},
 			apiKey

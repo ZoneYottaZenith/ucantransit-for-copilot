@@ -2,7 +2,7 @@
   "name": "ucantransit",
   "displayName": "UCanTransit for Copilot",
   "description": "填入调用端点地址 URL 与 API Key，即可把任意中转站或官方 API 接入 GitHub Copilot Chat；自动识别 OpenAI、Anthropic、Gemini 协议，支持多站点并行。",
-  "version": "0.6.0",
+  "version": "0.6.3",
   "publisher": "ZoneYottaZenith",
   "license": "MIT",
   "icon": "media/icon.png",

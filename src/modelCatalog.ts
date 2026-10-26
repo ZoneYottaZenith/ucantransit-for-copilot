@@ -190,6 +190,7 @@ function toEntry(
 		id: modelId,
 		name: displayNameOf(modelId),
 		contextLength: info?.contextLength && info.contextLength > 0 ? info.contextLength : DEFAULT_CONTEXT,
+		...(info?.outputLength && info.outputLength > 0 ? { outputLength: info.outputLength } : {}),
 		toolCalling: info ? info.toolCalling : true,
 		vision: info ? info.inputImage : guess.vision,
 		reasoning: info ? info.reasoning : guess.reasoning,

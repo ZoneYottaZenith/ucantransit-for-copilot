@@ -1,0 +1,38 @@
+# UCanTransit for Copilot 本地打包指令（WSL 里执行）
+# 生成的 ZIP 只含源码与打包好的 vsix，不含依赖、编译产物和 git 历史
+
+cd "/mnt/d/Software/IDE/VSCode/Code/Test/001/做一个中转插件/UCanTransit for Copilot" && \
+zip -r "/mnt/d/Software/IDE/VSCode/Code/Test/001/做一个中转插件/UCanTransit for Copilot/UCanTransit-for-Copilot-0.6.0源码-261025.zip" \
+  . \
+  -x "node_modules/*" \
+  -x "*/node_modules/*" \
+  -x ".git/*" \
+  -x "*.git/*" \
+  -x "out/*" \
+  -x "*/out/*" \
+  -x "*.map" \
+  -x "*.vscode-test/*" \
+  -x "*.zip"
+# 最终 ZIP 放在：D:\Software\IDE\VSCode\Code\Test\001\做一个中转插件\UCanTransit for Copilot\
+
+# ─────────────────────────────────────────────
+# 包里会有的东西
+#   src/                 TypeScript 源码
+#   media/               面板 html/css/js、models_dev.json、图标
+#   测试脚本/            自检脚本与静态预览
+#   package.json / tsconfig.json / .vscodeignore / .gitignore
+#   README.md / CHANGELOG.md / LICENSE
+#   package-lock.json    锁版本，重装依赖要用
+#   ucantransit-0.6.0.vsix   打包好的插件（可离线安装）
+#   发布到VS Code插件市场流程_2026-10-25.md
+#
+# 包里不会有的东西
+#   node_modules/          依赖，解压后 npm install 重装
+#   out/                   tsc 编译产物，npm run compile 重新生成
+#   .git/                  git 历史
+#   *.map / .vscode-test/  sourcemap 与测试缓存
+#   0.1.0 ~ 0.5.0 的旧 vsix  只留最新版；想全留就删掉对应 -x 行
+#
+# 拿出来之后怎么用
+#   npm install && npm run compile     # 重新编译
+#   code --install-extension ucantransit-0.6.0.vsix   # 或者直接用现成的 vsix

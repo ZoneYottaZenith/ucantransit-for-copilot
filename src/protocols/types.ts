@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { Reporter } from "../report";
+import type { Reporter, TokenUsage } from "../report";
 
 export type ProtocolMode = "openai" | "openai-responses" | "anthropic" | "gemini";
 
@@ -11,7 +11,7 @@ export interface ChatRequest {
 	messages: readonly vscode.LanguageModelChatRequestMessage[];
 	tools?: readonly vscode.LanguageModelChatTool[];
 	toolMode?: vscode.LanguageModelChatToolMode;
-	maxOutputTokens: number;
+	maxOutputTokens?: number;
 	temperature?: number;
 	topP?: number;
 	reasoningEffort?: string;
@@ -19,6 +19,14 @@ export interface ChatRequest {
 	extra?: Record<string, unknown>;
 	signal: AbortSignal;
 	reporter: Reporter;
+	/** 已知这条线路不认思考参数，直接跳过相关字段。 */
+	thinkingUnsupported?: boolean;
+	/** 已知这条线路不认工具定义，直接不传 tools。 */
+	toolUnsupported?: boolean;
+	/** 上游拒了某个字段时回调，宿主据此下次不再发。 */
+	onDowngrade?: (field: "thinking" | "tools") => void;
+	/** 拿到真实用量时回调，宿主用它校准 token 估算。 */
+	onUsage?: (usage: TokenUsage) => void;
 }
 
 export interface Protocol {

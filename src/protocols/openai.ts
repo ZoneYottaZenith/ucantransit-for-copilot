@@ -12,6 +12,7 @@ import {
 	type Protocol,
 } from "./types";
 import { thinkingFlavor } from "./thinking";
+import { readUsage, type TokenUsage } from "../report";
 
 interface OpenAIMessage {
 	role: "system" | "user" | "assistant" | "tool";
@@ -122,6 +123,10 @@ function endpoint(baseUrl: string, path: string): string {
  * 用户显式选了 none 才发关闭指令；认不出厂商就一个字段都不加，不乱猜。
  */
 function applyThinking(body: Record<string, unknown>, request: ChatRequest): void {
+	// 这条线路之前拒过思考参数，别再撞一次
+	if (request.thinkingUnsupported) {
+		return;
+	}
 	const flavor = thinkingFlavor(request.modelId);
 	if (flavor === "none") {
 		return;
@@ -140,14 +145,22 @@ function applyThinking(body: Record<string, unknown>, request: ChatRequest): voi
 
 export class OpenAIChatProtocol implements Protocol {
 	async send(request: ChatRequest): Promise<void> {
-		const { tools, tool_choice } = convertTools(request.tools, request.toolMode);
+		// 这条线路之前拒过工具定义，就别带了
+		const { tools, tool_choice } = request.toolUnsupported
+			? { tools: undefined, tool_choice: undefined }
+			: convertTools(request.tools, request.toolMode);
 
 		const body: Record<string, unknown> = {
 			model: request.modelId,
 			messages: convertMessages(request.messages),
 			stream: true,
-			max_tokens: request.maxOutputTokens,
 		};
+		// 不知道上限就不发，让上游用自己的默认值
+		if (request.maxOutputTokens) {
+			body.max_tokens = request.maxOutputTokens;
+		}
+		// 让上游在流里带上真实用量，Copilot 用它显示上下文占用
+		body.stream_options = { include_usage: true };
 		if (tools) {
 			body.tools = tools;
 			body.tool_choice = tool_choice;
@@ -158,7 +171,7 @@ export class OpenAIChatProtocol implements Protocol {
 		if (request.topP !== undefined) {
 			body.top_p = request.topP;
 		}
-		if (request.reasoningEffort && request.reasoningEffort !== "none") {
+		if (!request.thinkingUnsupported && request.reasoningEffort && request.reasoningEffort !== "none") {
 			body.reasoning_effort = request.reasoningEffort;
 		}
 		Object.assign(body, request.extra ?? {});
@@ -173,7 +186,6 @@ export class OpenAIChatProtocol implements Protocol {
 					body: JSON.stringify(payload),
 				},
 				signal: request.signal,
-				timeoutMs: 120_000,
 			});
 
 		let response = await post(body);
@@ -190,11 +202,28 @@ export class OpenAIChatProtocol implements Protocol {
 			if (/reasoning_effort|reasoning/i.test(detail) && "reasoning_effort" in retryBody) {
 				delete retryBody.reasoning_effort;
 				changed = true;
+				request.onDowngrade?.("thinking");
 			}
 			// 有些线路直接拒收 thinking / enable_thinking，去掉再走一次
 			if (/thinking/i.test(detail) && ("thinking" in retryBody || "enable_thinking" in retryBody)) {
 				delete retryBody.thinking;
 				delete retryBody.enable_thinking;
+				changed = true;
+				request.onDowngrade?.("thinking");
+			}
+			// 工具定义被拒的情况少见，只在报错明确指向 tools/function 时才降级
+			if (
+				/\b(unknown|unsupported|not support|invalid|unrecognized)[^.]{0,40}\b(tools?|functions?)\b/i.test(detail) &&
+				("tools" in retryBody || "tool_choice" in retryBody)
+			) {
+				delete retryBody.tools;
+				delete retryBody.tool_choice;
+				changed = true;
+				request.onDowngrade?.("tools");
+			}
+			// 有些线路不认 stream_options，去掉再用旧姿势请求
+			if (/stream_options/i.test(detail) && "stream_options" in retryBody) {
+				delete retryBody.stream_options;
 				changed = true;
 			}
 			if (changed) {
@@ -211,6 +240,7 @@ export class OpenAIChatProtocol implements Protocol {
 
 		const pending = new Map<number, { id?: string; name?: string; args: string }>();
 		const done = new Set<number>();
+		let latestUsage: TokenUsage | undefined;
 
 		const flush = (index: number): void => {
 			const call = pending.get(index);
@@ -236,6 +266,11 @@ export class OpenAIChatProtocol implements Protocol {
 			const chunk = parseSseData(line);
 			if (!chunk) {
 				return;
+			}
+			// 用量可能在最后一个独立 chunk 里（那时 choices 为空），先于 choice 判断处理
+			const nextUsage = readUsage(chunk.usage);
+			if (nextUsage) {
+				latestUsage = nextUsage;
 			}
 			const choice = (chunk.choices as Array<Record<string, unknown>> | undefined)?.[0];
 			if (!choice) {
@@ -278,5 +313,10 @@ export class OpenAIChatProtocol implements Protocol {
 		});
 
 		flushAll();
+		// 流结束后统一上报一次，用量只在最后一个 chunk 里给全
+		request.reporter.usage(latestUsage);
+		if (latestUsage) {
+			request.onUsage?.(latestUsage);
+		}
 	}
 }

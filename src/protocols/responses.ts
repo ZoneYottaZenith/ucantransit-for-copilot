@@ -88,8 +88,11 @@ export class ResponsesProtocol implements Protocol {
 			model: request.modelId,
 			input: convertInput(request.messages),
 			stream: true,
-			max_output_tokens: request.maxOutputTokens,
 		};
+		// 不知道上限就不发，让上游用自己的默认值
+		if (request.maxOutputTokens) {
+			body.max_output_tokens = request.maxOutputTokens;
+		}
 
 		if (request.tools && request.tools.length > 0) {
 			body.tools = request.tools.map((tool) => ({
@@ -119,7 +122,6 @@ export class ResponsesProtocol implements Protocol {
 				body: JSON.stringify(body),
 			},
 			signal: request.signal,
-			timeoutMs: 120_000,
 		});
 
 		if (!response.ok) {

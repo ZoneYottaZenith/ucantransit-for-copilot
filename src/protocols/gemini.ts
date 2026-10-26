@@ -106,9 +106,11 @@ export class GeminiProtocol implements Protocol {
 		const toolNames = collectToolNames(request.messages);
 		const { contents, systemText } = convertContents(request.messages, toolNames);
 
-		const generationConfig: Record<string, unknown> = {
-			maxOutputTokens: request.maxOutputTokens,
-		};
+		const generationConfig: Record<string, unknown> = {};
+		// 不知道上限就不发，让上游用自己的默认值
+		if (request.maxOutputTokens) {
+			generationConfig.maxOutputTokens = request.maxOutputTokens;
+		}
 		if (request.temperature !== undefined) {
 			generationConfig.temperature = request.temperature;
 		}
@@ -151,7 +153,6 @@ export class GeminiProtocol implements Protocol {
 				body: JSON.stringify(body),
 			},
 			signal: request.signal,
-			timeoutMs: 120_000,
 		});
 
 		if (!response.ok) {
