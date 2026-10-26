@@ -184,11 +184,12 @@ UCanTransit for Copilot
 │  │  ├─ thinking.ts         思考开关与档位注入
 │  │  ├─ index.ts            分发与协议标签
 │  │  └─ types.ts            共用类型、协议推断
-│  ├─ report.ts              文本 / 思考 / 工具调用上报
-│  ├─ http.ts                重试、超时、SSE 与 NDJSON 解析
+│  ├─ report.ts              文本 / 思考 / 工具调用上报、真实用量上报
+│  ├─ http.ts                重试、错误翻译、SSE 与 NDJSON 解析
 │  ├─ modelCatalog.ts        模型列表拉取、格式兼容、能力合并
 │  ├─ modelsDev.ts           models.dev 快照索引、投票合并与模糊匹配
 │  ├─ reasoningCatalog.ts    OpenRouter 思考档位（24 小时缓存）
+│  ├─ tokenRatio.ts          「每 token 多少字符」自校准，存 globalState
 │  ├─ displayName.ts         模型展示名整理
 │  ├─ config.ts              多站点、站点启停、模型与密钥读写
 │  ├─ panel.ts               侧边栏 WebviewView
@@ -207,12 +208,15 @@ UCanTransit for Copilot
 │  ├─ 配置读写自检.js        批量启停、单模型改协议、多站点隔离
 │  ├─ 刷新合并自检.js        刷新时保留用户设置、同步上游新值
 │  ├─ 模型名自检.js          展示名大小写规则
+│  ├─ 生成主图.js            从 logo SVG 生成市场主图（深色圆角底）
 │  ├─ 面板预览/              面板排版与配色的静态预览
 │  └─ 图标预览/              活动栏图标在深浅主题下的效果预览
 ├─ package.json              扩展清单（贡献点、分类、关键词、图标）
 ├─ README.md                 本文档
 ├─ CHANGELOG.md              版本记录
 ├─ LICENSE                   MIT
+├─ 发布到VS Code插件市场流程_2026-10-25.md   发布到市场的完整步骤与踩过的坑
+├─ 本地打包指令-UCanTransit.txt              WSL 下打包源码的 zip 命令
 └─ .vscodeignore / .gitignore
 ```
 
