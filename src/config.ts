@@ -290,15 +290,17 @@ export async function saveApiKey(
 	}
 }
 
-/** 只用于界面回显，不泄露完整密钥。 */
+/** 只用于界面回显，不泄露完整密钥：首尾各留 4 位，中间按真实长度打点。 */
 export function maskKey(key: string | undefined): string {
 	if (!key) {
 		return "";
 	}
-	if (key.length <= 8) {
-		return "••••";
+	const EDGE = 4;
+	// 太短的密钥露头露尾等于全露，干脆整串打点
+	if (key.length <= EDGE * 2) {
+		return "•".repeat(key.length);
 	}
-	return `${key.slice(0, 4)}••••${key.slice(-4)}`;
+	return `${key.slice(0, EDGE)}${"•".repeat(key.length - EDGE * 2)}${key.slice(-EDGE)}`;
 }
 
 export { LEGACY_SITE_ID };

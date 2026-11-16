@@ -158,6 +158,18 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 			case "openSettings":
 				await vscode.commands.executeCommand("workbench.action.openSettings", "ucantransit");
 				break;
+			case "revealKey": {
+				// 用户主动点了「显示」才读一次明文：只回给面板，不落盘、不写日志
+				const revealed = message.siteId ? await getApiKey(this.secrets, message.siteId) : undefined;
+				if (this.view) {
+					await this.view.webview.postMessage({
+						type: "revealedKey",
+						siteId: message.siteId,
+						value: revealed ?? "",
+					});
+				}
+				break;
+			}
 			default:
 				break;
 		}

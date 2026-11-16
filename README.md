@@ -16,6 +16,7 @@ Copilot 的聊天界面、Agent 模式、工具调用、指令与 Skills 全部�
 - **零侵入**：不修改 Copilot 的任何设置，不接管它的请求，也不新增聊天界面；没有学习成本。
 - **零运行时依赖**：纯 VS Code API + Node 内置模块，不需要 Python、Docker 或本地代理进程。
 - **密钥只进系统密钥库**：按站点分开存放在 `SecretStorage`，永不写入 `settings.json`，也不会进 Git 历史。
+- **要看明文得自己点**：输入框平时只显示掩码（首尾各 4 位，中间点数等于真实长度）；点「显示」才向扩展取一次完整密钥，只回给当前面板，不落盘也不写日志，再点一次就收起并清空。
 - **随时可回滚**：停用一个站点即撤销它的模型，移除站点只动它自己的数据，卸载前还能一键「清除全部数据」；总开关一关 Copilot 立刻恢复原状。
 
 **关于插件名字。** `UCanTransit` 读作 *U Can Transit*，取「你也能中转」的意思：请求在你和任意上游之间透明转接，模型照旧出现在 Copilot 原生的选择器里。`for Copilot` 则划清边界——它是给 Copilot 增配，不是另一个聊天客户端。
@@ -98,7 +99,7 @@ npm run compile
 
 ```bash
 npm run package
-code --install-extension ucantransit-0.6.8.vsix
+code --install-extension ucantransit-0.6.9.vsix
 ```
 
 ## 使用步骤

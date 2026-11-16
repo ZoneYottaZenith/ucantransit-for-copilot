@@ -82,10 +82,12 @@ export type PanelInbound =
 	| { type: "setAllModels"; enabled: boolean }
 	| { type: "setModelProtocol"; modelId: string; apiMode: ProtocolModeName }
 	| { type: "setModelEfforts"; modelId: string; sourceModelId: string | null }
+	/** 用户点「显示」才把完整密钥取出来，默认只下发掩码。 */
+	| { type: "revealKey"; siteId: string }
 	| { type: "wipeAll" };
 
 /** 扩展宿主发给面板的消息。 */
-export interface PanelOutbound {
-	type: "state";
-	state: PanelState;
-}
+export type PanelOutbound =
+	| { type: "state"; state: PanelState }
+	/** 只在用户主动点「显示」时发一次，带上明文密钥。 */
+	| { type: "revealedKey"; siteId: string; value: string };

@@ -47,6 +47,7 @@ const PROTOCOL_TITLES = {
 
 const DEFAULT_URL_HINT = "填到 /v1 即可，模型列表路径会自动补全。";
 const DEFAULT_KEY_HINT = "密钥存在系统密钥库，不写进设置文件。";
+const DEFAULT_SITE_NAME_HINT = "留空就用域名，比如：公司中转";
 /** 新增态在下拉里占的那一条，输入名字时直接改它的文字 */
 const DRAFT_OPTION_ID = "siteDraftOption";
 
@@ -61,6 +62,8 @@ let lastSiteId = null;
 let pendingRename = null;
 /** 已经提交过的 Key，免得同一个值每次失焦都发一遍 */
 let hintedKey = "";
+/** 当前框里是不是已从后端取回的完整密钥（而不是自己输入的内容） */
+let keyRevealed = false;
 /** 正等回包的地址和 Key，后端处理完就提示 */
 let pendingUrl = "";
 let pendingKey = "";
@@ -148,7 +151,7 @@ function renderSites(sites, activeId) {
 	// 新站点的序号接在最后一个已存站点后面；名字还没填就先把位置占着
 	const draftText = (order) => {
 		const label = draftSiteLabel();
-		return label ? `${order}. ${label}` : `${order}. （等待输入站点名称）`;
+		return label ? `${order}. ${label}` : `${order}. 未命名站点`;
 	};
 	if (sites.length === 0 && !addingNew) {
 		const option = document.createElement("option");
@@ -216,7 +219,7 @@ function refreshSelectText() {
 		}
 		const order = state.sites.length + 1;
 		const label = draftSiteLabel();
-		draft.textContent = label ? `${order}. ${label}` : `${order}. （等待输入站点名称）`;
+		draft.textContent = label ? `${order}. ${label}` : `${order}. 未命名站点`;
 		return;
 	}
 	const siteId = state.activeSiteId;
@@ -587,6 +590,8 @@ function render(next) {
 		hintedKey = "";
 		pendingUrl = "";
 		pendingKey = "";
+		// 上—个站点的明文不能带到这个站点
+		keyRevealed = false;
 		ui.apiKey.value = "";
 	}
 	state = next;
@@ -633,8 +638,10 @@ function render(next) {
 		pendingKey = "";
 	}
 	ui.siteNameHint.textContent = addingNew
-		? "新站点的名字，留空就用域名。"
+		? "这是一个未命名站点，名字留空就用域名。"
 		: "只是备注，用来区分多个中转站。";
+	// 新增态下名字框本来就是空的，用灰字说明它已经是个站点了（一进页面就置上，用户无需先填地址）
+	ui.siteName.placeholder = addingNew ? "未命名站点，填好地址后生效" : DEFAULT_SITE_NAME_HINT;
 	if (!addingNew && document.activeElement !== ui.baseUrl) {
 		ui.baseUrl.value = next.baseUrl || "";
 	}
@@ -796,6 +803,10 @@ function commitSiteKey() {
 	if (!state) {
 		return;
 	}
+	// 正在看明文：失焦不该把同一把密钥又存一遍
+	if (keyRevealed) {
+		return;
+	}
 	// 点「显示/隐藏」只是切明文，不算修改
 	if (document.activeElement === ui.toggleKey) {
 		return;
@@ -840,12 +851,14 @@ ui.siteName.addEventListener("keydown", (event) => {
 ui.newSite.addEventListener("click", () => {
 	addingNew = true;
 	draftRequested = false;
+	keyRevealed = false;
 	ui.siteName.value = "";
 	ui.baseUrl.value = "";
 	ui.apiKey.value = "";
 	ui.baseUrl.focus();
 	ui.connect.textContent = "添加并读取模型";
-	ui.siteNameHint.textContent = "新站点的名字，留空就用域名。";
+	ui.siteName.placeholder = "未命名站点，填好地址后生效";
+	ui.siteNameHint.textContent = "这是一个未命名站点，名字留空就用域名。";
 	ui.urlHint.textContent = "填新中转站的地址，一填好就会先存成一个站点。";
 	ui.keyHint.textContent = "新站点的密钥会单独保存。";
 	ui.apiKey.placeholder = "sk-...";
@@ -861,7 +874,7 @@ ui.newSite.addEventListener("click", () => {
 	ui.meta.textContent = "";
 	// 进入新建态时淡入一次，跟切站点用同一套过渡
 	playSiteSwap();
-	toast("填好地址和 Key，点下面的按钮就会读取这个新站点的模型");
+	toast("已新增一个未命名站点，填好地址和 Key 就能读模型");
 });
 
 ui.rescan.addEventListener("click", () => {
@@ -914,9 +927,23 @@ ui.selectNone.addEventListener("click", () => {
 });
 
 ui.toggleKey.addEventListener("click", () => {
-	const showing = ui.apiKey.type === "text";
-	ui.apiKey.type = showing ? "password" : "text";
-	ui.toggleKey.textContent = showing ? "显示" : "隐藏";
+	// 已经露出明文：收起，连内容一起清掉，别留在框里
+	if (keyRevealed) {
+		keyRevealed = false;
+		ui.apiKey.value = "";
+		ui.apiKey.type = "password";
+		ui.toggleKey.textContent = "显示";
+		return;
+	}
+	// 自己正在敲新密钥，或还没存过：就地切密码框/文本框
+	if (addingNew || ui.apiKey.value.trim() || !state?.hasApiKey) {
+		const showing = ui.apiKey.type === "text";
+		ui.apiKey.type = showing ? "password" : "text";
+		ui.toggleKey.textContent = showing ? "显示" : "隐藏";
+		return;
+	}
+	// 有已存的密钥：向扩展要一次完整明文
+	send({ type: "revealKey", siteId: state?.activeSiteId ?? "" });
 });
 
 ui.openSettings.addEventListener("click", () => send({ type: "openSettings" }));
@@ -932,8 +959,26 @@ ui.openSettings.addEventListener("click", () => send({ type: "openSettings" }));
 
 window.addEventListener("message", (event) => {
 	const message = event.data;
-	if (message && message.type === "state") {
+	if (!message) {
+		return;
+	}
+	if (message.type === "state") {
 		render(message.state);
+		return;
+	}
+	if (message.type === "revealedKey") {
+		// 站点在请求途中被切掉就丢弃，别把 A 站的密钥填到 B 站
+		if (message.siteId !== (state?.activeSiteId ?? "")) {
+			return;
+		}
+		if (!message.value) {
+			toast("没有可以显示的密钥");
+			return;
+		}
+		keyRevealed = true;
+		ui.apiKey.value = message.value;
+		ui.apiKey.type = "text";
+		ui.toggleKey.textContent = "隐藏";
 	}
 });
 
