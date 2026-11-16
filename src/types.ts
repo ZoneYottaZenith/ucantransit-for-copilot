@@ -76,6 +76,7 @@ export type PanelInbound =
 	| { type: "setSiteEnabled"; siteId: string; enabled: boolean }
 	| { type: "renameSite"; siteId: string; name: string }
 	| { type: "saveSiteFields"; baseUrl?: string; apiKey?: string }
+	| { type: "saveDraftSite"; baseUrl?: string; apiKey?: string; siteName?: string }
 	| { type: "removeSite"; siteId: string }
 	| { type: "toggleModel"; modelId: string; enabled: boolean }
 	| { type: "setAllModels"; enabled: boolean }

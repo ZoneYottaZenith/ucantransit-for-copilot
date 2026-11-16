@@ -64,6 +64,8 @@ let hintedKey = "";
 /** 正等回包的地址和 Key，后端处理完就提示 */
 let pendingUrl = "";
 let pendingKey = "";
+/** 新增态下是否已经把草稿站点提交下去了，避免失焦多次重复建站 */
+let draftRequested = false;
 /** 点到但还没等到后端确认的勾选；对上了才提示，避免“界面动了其实没存” */
 const pendingToggles = new Map();
 let pendingAll = null;
@@ -577,6 +579,7 @@ function render(next) {
 	lastStatus = next.status;
 	// 站点切了就淡入一次，让内容不是硬切；首次渲染不播
 	const siteChanged = lastSiteId !== null && lastSiteId !== next.activeSiteId;
+	const previousSiteCount = state ? state.sites.length : 0;
 	lastSiteId = next.activeSiteId;
 	if (siteChanged) {
 		// 切了站点，旧站点没到家的改名确认不用再追
@@ -593,6 +596,11 @@ function render(next) {
 	// 否则会把上一个站点的「已保存 xxx」又顶回来
 	if (previousStatus === "scanning" && next.status === "ready") {
 		addingNew = false;
+	}
+	// 草稿站点已经建下去了（列表多了一条）：从此它就是个正常站点
+	if (addingNew && next.sites.length > previousSiteCount) {
+		addingNew = false;
+		draftRequested = false;
 	}
 
 	ui.enabled.checked = next.enabled;
@@ -650,12 +658,15 @@ function render(next) {
 	ui.connect.textContent = scanning ? "读取中…" : addingNew ? "添加并读取模型" : "连接并读取模型";
 	// 刷新扫的是当前已存站点，新增态下没有对象可扫
 	ui.rescan.disabled = scanning || addingNew || !next.baseUrl;
-	ui.selectAll.disabled = scanning || next.models.length === 0;
-	ui.selectNone.disabled = scanning || next.models.length === 0;
+	// 新增态下列表属于「还不存在的站点」，别把上一站点的模型摆在这里
+	const shownModels = addingNew ? [] : next.models;
+	ui.selectAll.disabled = scanning || shownModels.length === 0;
+	ui.selectNone.disabled = scanning || shownModels.length === 0;
 
 	let badgeText = "未配置";
 	let badgeClass = "";
-	const enabledCount = next.models.filter((model) => model.enabled !== false).length;
+	// 新增态下没有「当前站点」可言，这些数字也别拿上一站点的凑
+	const enabledCount = shownModels.filter((model) => model.enabled !== false).length;
 	if (next.status === "error") {
 		badgeText = "出错";
 		badgeClass = "error";
@@ -673,10 +684,10 @@ function render(next) {
 	ui.badge.className = `badge ${badgeClass}`.trim();
 
 	const meta = [];
-	if (next.models.length > 0) {
-		meta.push(`${enabledCount}/${next.models.length} 启用`);
+	if (shownModels.length > 0) {
+		meta.push(`${enabledCount}/${shownModels.length} 启用`);
 	}
-	if (next.lastScanAt) {
+	if (!addingNew && next.lastScanAt) {
 		meta.push(`读取于 ${formatTime(next.lastScanAt)}`);
 	}
 	ui.meta.textContent = meta.join(" · ");
@@ -691,7 +702,7 @@ function render(next) {
 	const scrollTop = scroller ? scroller.scrollTop : 0;
 	renderSites(next.sites, next.activeSiteId);
 	refreshSelectText();
-	renderModels(next.models);
+	renderModels(shownModels);
 	if (siteChanged) {
 		playSiteSwap();
 	}
@@ -723,11 +734,26 @@ ui.connect.addEventListener("click", () => {
 
 // 改名不用重扫模型：失焦或回车就单独发一条消息
 function commitSiteName() {
-	if (!state || !state.activeSiteId || addingNew) {
+	if (!state) {
 		return;
 	}
 	const name = ui.siteName.value.trim();
-	if (name === (state.siteName || "")) {
+	if (addingNew) {
+		// 新增态下名字一改，已能成站（地址有效）就先把站点建出来
+		const url = ui.baseUrl.value.trim().replace(/\/+$/, "");
+		if (!name || !url || draftRequested || !/^https?:\/\//i.test(url)) {
+			return;
+		}
+		draftRequested = true;
+		send({
+			type: "saveDraftSite",
+			baseUrl: url,
+			apiKey: ui.apiKey.value.trim(),
+			siteName: name,
+		});
+		return;
+	}
+	if (!state.activeSiteId || name === (state.siteName || "")) {
 		return;
 	}
 	// 记下要改成什么，后端确认后再提示
@@ -739,10 +765,24 @@ ui.siteName.addEventListener("blur", commitSiteName);
 
 /** 地址改了直接存，不重扫；模型列表要等下次连接才刷新。 */
 function commitSiteUrl() {
-	if (!state || addingNew) {
+	if (!state) {
 		return;
 	}
 	const url = ui.baseUrl.value.trim().replace(/\/+$/, "");
+	if (addingNew) {
+		// 新增态：地址一填好就把站点建出来，不用等读取成功
+		if (!url || draftRequested || !/^https?:\/\//i.test(url)) {
+			return;
+		}
+		draftRequested = true;
+		send({
+			type: "saveDraftSite",
+			baseUrl: url,
+			apiKey: ui.apiKey.value.trim(),
+			siteName: ui.siteName.value.trim(),
+		});
+		return;
+	}
 	const current = (state.baseUrl || "").replace(/\/+$/, "");
 	if (!url || url === current) {
 		return;
@@ -751,9 +791,9 @@ function commitSiteUrl() {
 	send({ type: "saveSiteFields", baseUrl: url });
 }
 
-/** Key 同样一失焦就写进密钥库。 */
+/** Key 同样一失焦就写进密钥库；新增态下则顺带把站点建出来。 */
 function commitSiteKey() {
-	if (!state || addingNew) {
+	if (!state) {
 		return;
 	}
 	// 点「显示/隐藏」只是切明文，不算修改
@@ -761,7 +801,24 @@ function commitSiteKey() {
 		return;
 	}
 	const key = ui.apiKey.value.trim();
-	if (!key || key === hintedKey) {
+	if (!key) {
+		return;
+	}
+	if (addingNew) {
+		const url = ui.baseUrl.value.trim().replace(/\/+$/, "");
+		if (!url || draftRequested || !/^https?:\/\//i.test(url)) {
+			return;
+		}
+		draftRequested = true;
+		send({
+			type: "saveDraftSite",
+			baseUrl: url,
+			apiKey: key,
+			siteName: ui.siteName.value.trim(),
+		});
+		return;
+	}
+	if (key === hintedKey) {
 		return;
 	}
 	hintedKey = key;
@@ -782,21 +839,29 @@ ui.siteName.addEventListener("keydown", (event) => {
 
 ui.newSite.addEventListener("click", () => {
 	addingNew = true;
+	draftRequested = false;
 	ui.siteName.value = "";
 	ui.baseUrl.value = "";
 	ui.apiKey.value = "";
 	ui.baseUrl.focus();
 	ui.connect.textContent = "添加并读取模型";
 	ui.siteNameHint.textContent = "新站点的名字，留空就用域名。";
-	ui.urlHint.textContent = "填新中转站的地址，连接后会自动建一个站点。";
+	ui.urlHint.textContent = "填新中转站的地址，一填好就会先存成一个站点。";
 	ui.keyHint.textContent = "新站点的密钥会单独保存。";
 	ui.apiKey.placeholder = "sk-...";
 	// 立刻把下拉换成草稿项，不等后端推状态，点下去就能看见
 	renderSites(state?.sites ?? [], state?.activeSiteId ?? "");
 	refreshSelectText();
+	// 上一站点的模型不属于这个还没建的站点，直接清掉，别留着误导
+	if (state) {
+		state.models = [];
+		lastModelsKey = "";
+	}
+	renderModels([]);
+	ui.meta.textContent = "";
 	// 进入新建态时淡入一次，跟切站点用同一套过渡
 	playSiteSwap();
-	toast("填好地址和 Key，点下面的按钮就会新增一个站点");
+	toast("填好地址和 Key，点下面的按钮就会读取这个新站点的模型");
 });
 
 ui.rescan.addEventListener("click", () => {

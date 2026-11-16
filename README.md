@@ -98,7 +98,7 @@ npm run compile
 
 ```bash
 npm run package
-code --install-extension ucantransit-0.6.7.vsix
+code --install-extension ucantransit-0.6.8.vsix
 ```
 
 ## 使用步骤

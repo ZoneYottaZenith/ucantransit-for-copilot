@@ -137,6 +137,9 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 			case "saveSiteFields":
 				await this.saveSiteFields(message.baseUrl, message.apiKey);
 				break;
+			case "saveDraftSite":
+				await this.saveDraftSite(message.baseUrl, message.apiKey, message.siteName);
+				break;
 			case "toggleModel":
 				await this.toggleModel(message.modelId, message.enabled);
 				break;
@@ -181,7 +184,11 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 		// 明确点「新增」时一律建新站点：地址相同也允许，因为换一把 Key 就是另一套模型。
 		// 没点新增时，地址相同就当成更新当前站点，免得以为是覆盖其实是复制。
 		const sameAddress = Boolean(current) && current!.baseUrl.replace(/\/+$/, "") === baseUrl;
-		const siteId = asNew || !sameAddress ? `site-${Date.now().toString(36)}` : current!.id;
+		// 刚点新增、地址一失焦就先建好的草稿站点（还没有模型）：直接用它，别重复建一个
+		const reusable = asNew
+			? getSites().find((item) => item.baseUrl.replace(/\/+$/, "") === baseUrl && getModels(item.id).length === 0)
+			: undefined;
+		const siteId = reusable?.id ?? (asNew || !sameAddress ? `site-${Date.now().toString(36)}` : current!.id);
 
 		const apiKey = rawApiKey.trim() || (await getApiKey(this.secrets, siteId)) || "";
 		if (!apiKey) {
@@ -195,7 +202,11 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 			{
 				id: siteId,
 				// 新建时不要把上一个站点的名字带过来
-				name: rawSiteName?.trim() || (sameAddress && !asNew ? current?.name : undefined) || hostOf(baseUrl),
+				name:
+					rawSiteName?.trim() ||
+					reusable?.name ||
+					(sameAddress && !asNew ? current?.name : undefined) ||
+					hostOf(baseUrl),
 				baseUrl,
 			},
 			apiKey
@@ -362,6 +373,41 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 		this.status = "idle";
 		this.message = "站点已移除。";
 		this.lastScanAt = null;
+		await this.pushState();
+	}
+
+	/**
+	 * 新增态：地址一填好就把站点存下来。
+	 *
+	 * 不用等模型读到——读不到也应该有个站点可以改、可以删，
+	 * 也不该要求用户「先读成功再决定要不要建」。
+	 */
+	private async saveDraftSite(
+		rawBaseUrl: string | undefined,
+		rawApiKey: string | undefined,
+		rawSiteName: string | undefined
+	): Promise<void> {
+		if (this.scanning) {
+			return;
+		}
+		const baseUrl = (rawBaseUrl ?? "").trim().replace(/\/+$/, "");
+		if (!baseUrl || !/^https?:\/\//i.test(baseUrl)) {
+			return;
+		}
+		const site: SiteEntry = {
+			id: `site-${Date.now().toString(36)}`,
+			name: rawSiteName?.trim() || hostOf(baseUrl),
+			baseUrl,
+		};
+		await saveSite(site);
+		if (rawApiKey?.trim()) {
+			await saveApiKey(this.secrets, site.id, rawApiKey.trim());
+		}
+		await setActiveSiteId(site.id);
+		this.status = "idle";
+		this.message = "";
+		this.lastScanAt = null;
+		this.provider.refresh();
 		await this.pushState();
 	}
 
