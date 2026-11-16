@@ -4,6 +4,9 @@ out/
 *.vsix
 *.map
 
+# 本机打包便签，只留本地
+本地打包指令-*.txt
+
 # 系统与编辑器杂项
 .DS_Store
 Thumbs.db
