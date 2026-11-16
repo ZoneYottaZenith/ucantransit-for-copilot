@@ -21,7 +21,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	provider.refresh();
 	context.subscriptions.push(refreshAfterCopilotActivation(provider));
 
-	const panel = new PanelViewProvider(context.extensionUri, context.secrets, provider);
+	const panel = new PanelViewProvider(
+		context.extensionUri,
+		context.secrets,
+		provider,
+		String(context.extension.packageJSON.version ?? "")
+	);
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(PanelViewProvider.viewType, panel, {
 			webviewOptions: { retainContextWhenHidden: true },

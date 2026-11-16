@@ -15,11 +15,12 @@ import {
 	setEnabled,
 	setModelProtocol,
 	setSiteEnabled,
+	wipeAllData,
 } from "./config";
 import { mergeModels, scanModels, withEffortsFrom } from "./modelCatalog";
 import { ModelsDevCatalog } from "./modelsDev";
 import { ReasoningCatalog } from "./reasoningCatalog";
-import type { ModelEntry, PanelInbound, PanelState, ProtocolModeName, SiteEntry } from "./types";
+import type { PanelInbound, PanelState, ProtocolModeName, SiteEntry } from "./types";
 import type { TransitModelProvider } from "./provider";
 
 const EMPTY_REASONING = ReasoningCatalog.empty();
@@ -40,7 +41,8 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 	constructor(
 		private readonly extensionUri: vscode.Uri,
 		private readonly secrets: vscode.SecretStorage,
-		private readonly provider: TransitModelProvider
+		private readonly provider: TransitModelProvider,
+		private readonly version: string
 	) {}
 
 	/** 档位数据是异步加载的，就绪后通知面板重画。 */
@@ -83,6 +85,7 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 			lastScanAt: this.lastScanAt,
 			sites: getSites(),
 			activeSiteId: siteId,
+			version: this.version,
 			thinkingSupported: Boolean(
 				(vscode as unknown as { LanguageModelThinkingPart?: unknown }).LanguageModelThinkingPart
 			),
@@ -131,6 +134,9 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 			case "renameSite":
 				await this.renameSite(message.siteId, message.name);
 				break;
+			case "saveSiteFields":
+				await this.saveSiteFields(message.baseUrl, message.apiKey);
+				break;
 			case "toggleModel":
 				await this.toggleModel(message.modelId, message.enabled);
 				break;
@@ -143,8 +149,8 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 			case "setModelEfforts":
 				await this.changeModelEfforts(message.modelId, message.sourceModelId);
 				break;
-			case "clear":
-				await this.clear();
+			case "wipeAll":
+				await this.wipeAll();
 				break;
 			case "openSettings":
 				await vscode.commands.executeCommand("workbench.action.openSettings", "ucantransit");
@@ -334,7 +340,7 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 		if (activeBefore && activeBefore !== site.id) {
 			await setActiveSiteId(activeBefore);
 		}
-		this.message = `站点已改名为「${name}」。`;
+		// 不改 message：这个提示交给面板，等它确认到新名字再弹，时机才准
 		await this.pushState();
 	}
 
@@ -359,29 +365,49 @@ export class PanelViewProvider implements vscode.WebviewViewProvider {
 		await this.pushState();
 	}
 
-	private async clear(): Promise<void> {
+	/** 地址或 Key 一改就落盘，不用等重扫；模型列表保持原样。 */
+	private async saveSiteFields(rawBaseUrl?: string, rawApiKey?: string): Promise<void> {
 		const site = getActiveSite();
 		if (!site) {
 			return;
 		}
-		const confirmed = await vscode.window.showWarningMessage(
-			`清空站点「${site.name}」的模型和 API Key？Copilot 会立即恢复原有模型。`,
-			{ modal: true },
-			"清空"
-		);
-		if (confirmed !== "清空") {
-			return;
+		if (rawBaseUrl) {
+			const baseUrl = rawBaseUrl.trim().replace(/\/+$/, "");
+			if (!/^https?:\/\//i.test(baseUrl)) {
+				this.status = "error";
+				this.message = "地址需要以 http:// 或 https:// 开头，这次没有保存。";
+				await this.pushState();
+				return;
+			}
+			if (baseUrl !== site.baseUrl) {
+				await saveSite({ ...site, baseUrl });
+			}
 		}
-		const remaining: ModelEntry[] = [];
-		await saveModels(site.id, remaining);
-		await this.secrets.delete(`ucantransit.apiKey.${site.id}`);
+		if (rawApiKey) {
+			await saveApiKey(this.secrets, site.id, rawApiKey.trim());
+		}
 		this.provider.refresh();
-		this.status = "idle";
-		this.message = "已清空，Copilot 已恢复原有模型列表。";
-		this.lastScanAt = null;
 		await this.pushState();
 	}
 
+	/** 卸载前用：连密钥一起清掉，别让重装后原样恢复。 */
+	private async wipeAll(): Promise<void> {
+		const sites = getSites();
+		const confirmed = await vscode.window.showWarningMessage(
+			`清除全部数据？${sites.length} 个站点、它们的模型列表、API Key 以及所有设置都会被删掉，删完无法恢复。`,
+			{ modal: true },
+			"全部清除"
+		);
+		if (confirmed !== "全部清除") {
+			return;
+		}
+		await wipeAllData(this.secrets);
+		this.provider.refresh();
+		this.status = "idle";
+		this.lastScanAt = null;
+		this.message = "已清除全部数据，现在卸载插件不会留下配置和密钥。";
+		await this.pushState();
+	}
 	private async render(webview: vscode.Webview): Promise<string> {
 		const mediaRoot = vscode.Uri.joinPath(this.extensionUri, "media");
 		const template = vscode.Uri.joinPath(mediaRoot, "panel.html");

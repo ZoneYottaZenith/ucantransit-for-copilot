@@ -128,6 +128,23 @@ export async function removeSite(siteId: string, secrets: vscode.SecretStorage):
 	}
 }
 
+/**
+ * 把插件写在本机的所有东西清干净：站点、模型、每个站点的密钥，
+ * 连旧版单站点字段一起删，免得重装时又被迁移回来。
+ */
+export async function wipeAllData(secrets: vscode.SecretStorage): Promise<void> {
+	// 先取站点（可能包含从旧字段迁移出来的），密钥是按站点 id 一条条存的
+	const sites = getSites();
+	for (const site of sites) {
+		await secrets.delete(`${SECRET_PREFIX}.${site.id}`);
+	}
+	await secrets.delete(LEGACY_SECRET);
+	const cfg = config();
+	for (const key of ["sites", "modelsBySite", "models", "baseUrl", "activeSiteId", "enabled"]) {
+		await cfg.update(key, undefined, vscode.ConfigurationTarget.Global);
+	}
+}
+
 /** 旧版本把模型写在 models 里，这里做兼容读取。 */
 function readModelsBySite(): Record<string, ModelEntry[]> {
 	const raw = config().get<unknown>("modelsBySite", {});
@@ -161,7 +178,9 @@ function normalizeModels(raw: unknown): ModelEntry[] {
 			continue;
 		}
 		const source =
-			record.source === "models.dev" || record.source === "heuristic" ? record.source : "default";
+			record.source === "models.dev" || record.source === "upstream" || record.source === "heuristic"
+				? record.source
+				: "default";
 		const storedName = typeof record.name === "string" && record.name ? record.name : id;
 		entries.push({
 			id,

@@ -1,6 +1,6 @@
 /** 扩展内共用的数据结构。 */
 
-export type CapabilitySource = "models.dev" | "heuristic" | "default";
+export type CapabilitySource = "models.dev" | "upstream" | "heuristic" | "default";
 
 export type ProtocolModeName = "openai" | "openai-responses" | "anthropic" | "gemini";
 
@@ -61,6 +61,8 @@ export interface PanelState {
 	activeSiteId: string;
 	/** 当前 VS Code 是否提供思考内容的展示能力。 */
 	thinkingSupported: boolean;
+	/** 插件当前版本号，面板上跟副标题一起显示。 */
+	version: string;
 }
 
 /** 面板发给扩展宿主的消息。 */
@@ -69,16 +71,17 @@ export type PanelInbound =
 	| { type: "connect"; baseUrl: string; apiKey: string; siteName?: string; asNew?: boolean }
 	| { type: "rescan" }
 	| { type: "setEnabled"; enabled: boolean }
-	| { type: "clear" }
 	| { type: "openSettings" }
 	| { type: "selectSite"; siteId: string }
 	| { type: "setSiteEnabled"; siteId: string; enabled: boolean }
 	| { type: "renameSite"; siteId: string; name: string }
+	| { type: "saveSiteFields"; baseUrl?: string; apiKey?: string }
 	| { type: "removeSite"; siteId: string }
 	| { type: "toggleModel"; modelId: string; enabled: boolean }
 	| { type: "setAllModels"; enabled: boolean }
 	| { type: "setModelProtocol"; modelId: string; apiMode: ProtocolModeName }
-	| { type: "setModelEfforts"; modelId: string; sourceModelId: string | null };
+	| { type: "setModelEfforts"; modelId: string; sourceModelId: string | null }
+	| { type: "wipeAll" };
 
 /** 扩展宿主发给面板的消息。 */
 export interface PanelOutbound {

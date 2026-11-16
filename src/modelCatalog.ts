@@ -7,7 +7,7 @@ import { guessProtocol } from "./protocols";
 /**
  * 模型发现：问中转站有哪些模型，并尽量把能力和档位填对。
  *
- * 能力顺序固定：models.dev 快照 → 名称关键词 → 保守默认。
+ * 能力顺序固定：上游列表自报 → models.dev 快照 → 名称关键词 → 保守默认。
  * 图片能力不猜：猜错的代价是用户一发图就失败。
  *
  * 协议跟站点无关：拿到名单后逐个按模型名推断，面板里还能单独改。
@@ -136,28 +136,165 @@ async function request(url: string, mode: ProtocolModeName, apiKey: string): Pro
 	}
 }
 
-/** 兼容 {data:[]}、{models:[]}、裸数组；Gemini 的 name 是 models/xxx，需要去掉前缀。 */
-function extractIds(payload: unknown): string[] {
-	const collect = (list: unknown): string[] => {
+/** 上游列表里能自报的能力；各家字段名五花八门，这里把常见的都认一遍。 */
+interface UpstreamHint {
+	contextLength?: number;
+	outputLength?: number;
+	vision?: boolean;
+	toolCalling?: boolean;
+	reasoning?: boolean;
+}
+
+interface UpstreamModel {
+	id: string;
+	hint: UpstreamHint;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
+/** 按顺序取第一个正整数，全都没有就返回 undefined。 */
+function pickNumber(record: Record<string, unknown> | undefined, keys: string[]): number | undefined {
+	if (!record) {
+		return undefined;
+	}
+	for (const key of keys) {
+		const value = record[key];
+		if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+			return Math.round(value);
+		}
+	}
+	return undefined;
+}
+
+/** 只认明确的布尔值：没写就是没写，不拿默认值顶。 */
+function pickBoolean(record: Record<string, unknown> | undefined, keys: string[]): boolean | undefined {
+	if (!record) {
+		return undefined;
+	}
+	for (const key of keys) {
+		const value = record[key];
+		if (typeof value === "boolean") {
+			return value;
+		}
+	}
+	return undefined;
+}
+
+/** 字符串数组里是否提到某个词；不是数组（没说过）就返回 undefined。 */
+function listMentions(value: unknown, words: string[]): boolean | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const items = value.filter((item): item is string => typeof item === "string").map((item) => item.toLowerCase());
+	if (items.length === 0) {
+		return undefined;
+	}
+	return items.some((item) => words.some((word) => item.includes(word)));
+}
+
+/**
+ * 从上游那一条模型记录里读出它自己报的能力。
+ *
+ * 中转站背后可能是 OpenRouter、vLLM、Gemini 等不同形态，上下文窗口的字段名
+ * 从 context_length 到 max_model_len 都有；认得就记下来，认不出留空交给后面的快照兜底。
+ */
+function hintOf(record: Record<string, unknown>): UpstreamHint {
+	const limit = asRecord(record.limit);
+	const top = asRecord(record.top_provider);
+	const capabilities = asRecord(record.capabilities);
+	const architecture = asRecord(record.architecture);
+	const modalities = asRecord(record.modalities);
+
+	const contextLength =
+		pickNumber(record, [
+			"context_length",
+			"context_window",
+			"max_context_length",
+			"max_input_tokens",
+			"input_token_limit",
+			"max_model_len",
+			"n_ctx",
+		]) ??
+		pickNumber(limit, ["context", "input"]) ??
+		pickNumber(top, ["context_length"]);
+
+	const outputLength =
+		pickNumber(record, [
+			"max_output_tokens",
+			"max_completion_tokens",
+			"max_tokens",
+			"output_token_limit",
+			"max_output_length",
+		]) ??
+		pickNumber(limit, ["output"]) ??
+		pickNumber(top, ["max_completion_tokens"]);
+
+	const vision =
+		pickBoolean(record, ["vision", "image_input", "supports_vision"]) ??
+		pickBoolean(capabilities, ["vision", "image"]) ??
+		listMentions(modalities?.input, ["image"]) ??
+		listMentions(architecture?.input_modalities, ["image"]) ??
+		listMentions(record.input_modalities, ["image"]);
+
+	const supported = record.supported_parameters;
+	const toolCalling =
+		pickBoolean(record, ["tool_call", "tool_calling", "function_calling", "supports_tools"]) ??
+		pickBoolean(capabilities, ["tool_calling", "tools", "function_calling"]) ??
+		listMentions(supported, ["tool", "function"]);
+
+	const reasoning =
+		pickBoolean(record, ["reasoning", "thinking", "supports_reasoning"]) ??
+		pickBoolean(capabilities, ["reasoning", "thinking"]) ??
+		listMentions(supported, ["reasoning", "thinking"]);
+
+	return { contextLength, outputLength, vision, toolCalling, reasoning };
+}
+
+/** 上游到底报了点什么有用的东西。 */
+function hasHint(hint: UpstreamHint): boolean {
+	return (
+		hint.contextLength !== undefined ||
+		hint.outputLength !== undefined ||
+		hint.vision !== undefined ||
+		hint.toolCalling !== undefined ||
+		hint.reasoning !== undefined
+	);
+}
+
+/**
+ * 兼容 {data:[]}、{models:[]}、裸数组；Gemini 的 name 是 models/xxx，需要去掉前缀。
+ * 除了 id，把每条自报的能力也一并带上。
+ */
+function extractModels(payload: unknown): UpstreamModel[] {
+	const collect = (list: unknown): UpstreamModel[] => {
 		if (!Array.isArray(list)) {
 			return [];
 		}
-		const ids: string[] = [];
+		const found: UpstreamModel[] = [];
 		for (const item of list) {
 			if (typeof item === "string") {
-				ids.push(item);
+				const id = item.trim();
+				if (id) {
+					found.push({ id: id.replace(/^models\//i, ""), hint: {} });
+				}
 				continue;
 			}
 			if (!item || typeof item !== "object") {
 				continue;
 			}
 			const record = item as Record<string, unknown>;
-			const id = record.id ?? record.name ?? record.model;
-			if (typeof id === "string" && id.trim()) {
-				ids.push(id.trim().replace(/^models\//i, ""));
+			const raw = record.id ?? record.name ?? record.model;
+			if (typeof raw !== "string" || !raw.trim()) {
+				continue;
 			}
+			found.push({
+				id: raw.trim().replace(/^models\//i, ""),
+				hint: hintOf(record),
+			});
 		}
-		return ids;
+		return found;
 	};
 
 	if (Array.isArray(payload)) {
@@ -180,21 +317,36 @@ function heuristic(modelId: string): { vision: boolean; reasoning: boolean } {
 function toEntry(
 	modelId: string,
 	catalog: ModelsDevCatalog | undefined,
-	reasoning: ReasoningCatalog | undefined
+	reasoning: ReasoningCatalog | undefined,
+	hint?: UpstreamHint
 ): ModelEntry {
 	const info = catalog?.find(modelId);
 	const guess = heuristic(modelId);
 	const efforts = reasoning?.find(modelId);
 
+	// 上游自己报的比快照新，优先用；它没说才退回 models.dev，最后才按名字猜
+	const contextLength = hint?.contextLength ?? info?.contextLength;
+	const outputLength = hint?.outputLength ?? info?.outputLength;
+	const vision = hint?.vision ?? info?.inputImage ?? guess.vision;
+	const toolCalling = hint?.toolCalling ?? info?.toolCalling ?? true;
+	const reasoningSupported = hint?.reasoning ?? info?.reasoning ?? guess.reasoning;
+	const source: ModelEntry["source"] = hasHint(hint ?? {})
+		? "upstream"
+		: info
+			? "models.dev"
+			: guess.vision || guess.reasoning
+				? "heuristic"
+				: "default";
+
 	const base: ModelEntry = {
 		id: modelId,
 		name: displayNameOf(modelId),
-		contextLength: info?.contextLength && info.contextLength > 0 ? info.contextLength : DEFAULT_CONTEXT,
-		...(info?.outputLength && info.outputLength > 0 ? { outputLength: info.outputLength } : {}),
-		toolCalling: info ? info.toolCalling : true,
-		vision: info ? info.inputImage : guess.vision,
-		reasoning: info ? info.reasoning : guess.reasoning,
-		source: info ? "models.dev" : guess.vision || guess.reasoning ? "heuristic" : "default",
+		contextLength: contextLength && contextLength > 0 ? contextLength : DEFAULT_CONTEXT,
+		...(outputLength && outputLength > 0 ? { outputLength } : {}),
+		toolCalling,
+		vision,
+		reasoning: reasoningSupported,
+		source,
 		enabled: true,
 		apiMode: guessProtocol(modelId),
 	};
@@ -237,19 +389,32 @@ export async function scanModels(
 					);
 					continue;
 				}
-				const ids = Array.from(new Set(extractIds(await response.json())));
-				if (ids.length === 0) {
+				const found = new Map<string, UpstreamModel>();
+				for (const item of extractModels(await response.json())) {
+					// 同一个 id 可能同时出现在 data 和 models 两处，留信息更全的那条
+					const existing = found.get(item.id);
+					if (!existing || hasHint(item.hint)) {
+						found.set(item.id, item);
+					}
+				}
+				if (found.size === 0) {
 					lastError = new Error("接口没有返回任何模型，请确认地址是否指向中转站根路径");
 					continue;
 				}
 
-				const models = ids
-					.map((id) => toEntry(id, catalog, options?.reasoning))
+				const models = [...found.values()]
+					.map((item) => toEntry(item.id, catalog, options?.reasoning, item.hint))
 					.sort((a, b) => a.id.localeCompare(b.id));
 
-				const unknown = models.filter((model) => model.source !== "models.dev").length;
+				const unknown = models.filter(
+					(model) => model.source !== "models.dev" && model.source !== "upstream"
+				).length;
+				const fromUpstream = models.filter((model) => model.source === "upstream").length;
 				const withEfforts = models.filter((model) => (model.supportedEfforts?.length ?? 0) > 0).length;
 				const notes: string[] = [];
+				if (fromUpstream > 0) {
+					notes.push(`${fromUpstream} 个模型的能力来自上游自报`);
+				}
 				if (unknown > 0) {
 					notes.push(`${unknown} 个模型缺少能力数据，已按名称规则或默认值处理`);
 				}

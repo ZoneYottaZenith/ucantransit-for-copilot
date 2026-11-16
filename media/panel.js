@@ -3,7 +3,8 @@ const $ = (id) => document.getElementById(id);
 
 const ui = {
 	enabled: $("enabled"),
-	subtitle: $("subtitle"),
+	subtitleText: $("subtitleText"),
+	version: $("version"),
 	newSite: $("newSite"),
 	removeSite: $("removeSite"),
 	toggleSite: $("toggleSite"),
@@ -25,7 +26,7 @@ const ui = {
 	selectNone: $("selectNone"),
 	rescan: $("rescan"),
 	openSettings: $("openSettings"),
-	clear: $("clear"),
+	wipeAll: $("wipeAll"),
 	toasts: $("toasts"),
 };
 
@@ -46,6 +47,8 @@ const PROTOCOL_TITLES = {
 
 const DEFAULT_URL_HINT = "填到 /v1 即可，模型列表路径会自动补全。";
 const DEFAULT_KEY_HINT = "密钥存在系统密钥库，不写进设置文件。";
+/** 新增态在下拉里占的那一条，输入名字时直接改它的文字 */
+const DRAFT_OPTION_ID = "siteDraftOption";
 
 let state = null;
 let keyword = "";
@@ -54,6 +57,19 @@ let lastStatus = null;
 let lastMessage = "";
 /** 上一次渲染的站点，用来判断是不是刚切了站点 */
 let lastSiteId = null;
+/** 刚提交改名、还在等后端确认的名字；确认后由前端自己弹提示 */
+let pendingRename = null;
+/** 已经提交过的 Key，免得同一个值每次失焦都发一遍 */
+let hintedKey = "";
+/** 正等回包的地址和 Key，后端处理完就提示 */
+let pendingUrl = "";
+let pendingKey = "";
+/** 点到但还没等到后端确认的勾选；对上了才提示，避免“界面动了其实没存” */
+const pendingToggles = new Map();
+let pendingAll = null;
+let toggleSeq = 0;
+/** 模型列表的内容指纹：内容没变就不白重建一遍 */
+let lastModelsKey = "";
 
 const send = (message) => vscode.postMessage(message);
 
@@ -111,9 +127,28 @@ function playSiteSwap() {
 	});
 }
 
+/** 下拉里一个站点长什么样，渲染和实时改名共用同一套写法。 */
+function siteOptionText(order, name, disabled) {
+	const dot = disabled ? "⚪" : "🟢";
+	return disabled ? `${order}. ${name}${dot}（已停用）` : `${order}. ${name}${dot}`;
+}
+
+function hostOfUrl(url) {
+	try {
+		return new URL(url).host;
+	} catch {
+		return (url || "").trim();
+	}
+}
+
 function renderSites(sites, activeId) {
 	ui.siteSelect.replaceChildren();
-	if (sites.length === 0) {
+	// 新站点的序号接在最后一个已存站点后面；名字还没填就先把位置占着
+	const draftText = (order) => {
+		const label = draftSiteLabel();
+		return label ? `${order}. ${label}` : `${order}. （等待输入站点名称）`;
+	};
+	if (sites.length === 0 && !addingNew) {
 		const option = document.createElement("option");
 		option.value = "";
 		option.textContent = "还没有站点，先填地址和 Key";
@@ -124,24 +159,74 @@ function renderSites(sites, activeId) {
 		ui.toggleSite.textContent = "停用";
 		return;
 	}
+	// 新增态单独占一项，否则下拉仍勾着上一个站点，看着像新增没点上
+	if (addingNew) {
+		const draft = document.createElement("option");
+		draft.id = DRAFT_OPTION_ID;
+		draft.value = "";
+		draft.textContent = draftText(sites.length + 1);
+		draft.selected = true;
+		ui.siteSelect.appendChild(draft);
+	}
 	sites.forEach((site, index) => {
 		const option = document.createElement("option");
 		option.value = site.id;
 		// 序号按列表顺序走：先加的在前，删掉中间一个后面的自动顶上；只出现在这个下拉里
-		const order = index + 1;
-		// 原生 option 没法单独上色，用圆点符号当状态灯：绿=启用，白=停用
-		const dot = site.enabled === false ? "⚪" : "🟢";
-		option.textContent =
-			site.enabled === false ? `${order}. ${site.name}${dot}（已停用）` : `${order}. ${site.name}${dot}`;
+		option.textContent = siteOptionText(index + 1, site.name, site.enabled === false);
 		option.title = site.baseUrl;
-		option.selected = site.id === activeId;
+		option.selected = !addingNew && site.id === activeId;
 		ui.siteSelect.appendChild(option);
 	});
 	ui.siteSelect.disabled = false;
-	ui.removeSite.disabled = false;
 	const active = sites.find((site) => site.id === activeId);
-	ui.toggleSite.disabled = !active;
+	// 新增态下没有「当前站点」可言，停用和移除都先收起来
+	ui.removeSite.disabled = addingNew;
+	ui.toggleSite.disabled = addingNew || !active;
 	ui.toggleSite.textContent = active && active.enabled === false ? "启用" : "停用";
+}
+
+/** 新站点最终会用什么名字：填了名字用名字，没填就用地址的域名，跟后端一致。 */
+function draftSiteLabel() {
+	const name = ui.siteName.value.trim();
+	if (name) {
+		return name;
+	}
+	const url = ui.baseUrl.value.trim();
+	if (!url) {
+		return "";
+	}
+	try {
+		return new URL(url).host;
+	} catch {
+		return url;
+	}
+}
+
+/** 边输入边改下拉里那一行：新增时改草稿项，改旧站点名时改它自己那一项。 */
+function refreshSelectText() {
+	if (!state) {
+		return;
+	}
+	if (addingNew) {
+		const draft = ui.siteSelect.querySelector(`#${DRAFT_OPTION_ID}`);
+		if (!draft) {
+			return;
+		}
+		const order = state.sites.length + 1;
+		const label = draftSiteLabel();
+		draft.textContent = label ? `${order}. ${label}` : `${order}. （等待输入站点名称）`;
+		return;
+	}
+	const siteId = state.activeSiteId;
+	const index = state.sites.findIndex((item) => item.id === siteId);
+	const site = state.sites[index];
+	const option = siteId ? ui.siteSelect.querySelector(`option[value="${siteId}"]`) : null;
+	if (!site || !option) {
+		return;
+	}
+	// 输入框里的就是即将生效的名字；清空时后端会回退成域名，这里也先按域名预览
+	const name = ui.siteName.value.trim() || hostOfUrl(site.baseUrl);
+	option.textContent = siteOptionText(index + 1, name, site.enabled === false);
 }
 
 /**
@@ -256,7 +341,131 @@ function buildEffortBlock(model, allModels) {
 	return { button, panel };
 }
 
+/** 列表内容指纹：模型数组加搜索词，任何一个变了就得重画。 */
+function modelListKey(models) {
+	return `${keyword}\u0000${JSON.stringify(models)}`;
+}
+
+/** 先自己把勾翻了，别干等后端；存没存上以后端回包为准。 */
+function applyLocalToggle(modelId, enabled) {
+	if (!state) {
+		return;
+	}
+	state.models = state.models.map((item) => (item.id === modelId ? { ...item, enabled } : item));
+	// 界面此刻就是这个样子，同步指纹，回包时能直接跳过重建
+	lastModelsKey = modelListKey(state.models);
+	const token = ++toggleSeq;
+	pendingToggles.set(modelId, { enabled, token });
+	send({ type: "toggleModel", modelId, enabled });
+	// 后端一声不璽时也别让人一直以为存上了
+	window.setTimeout(() => {
+		const current = pendingToggles.get(modelId);
+		if (!current || current.token !== token) {
+			return;
+		}
+		pendingToggles.delete(modelId);
+		if (!state) {
+			return;
+		}
+		state.models = state.models.map((item) =>
+			item.id === modelId ? { ...item, enabled: !enabled } : item
+		);
+		lastModelsKey = "";
+		renderModels(state.models);
+		toast(`${modelId} 保存失败，已恢复原状`, "error");
+	}, 6000);
+}
+
+/** 全开/全关：一次翻完所有勾，同样等后端回包再提示。 */
+function applyLocalAll(enabled) {
+	if (!state || state.models.length === 0) {
+		return;
+	}
+	// 记下原样，万一后端没回话要按原样退回去，不能一律取反
+	const original = new Map(state.models.map((item) => [item.id, item.enabled !== false]));
+	state.models = state.models.map((item) => ({ ...item, enabled }));
+	lastModelsKey = modelListKey(state.models);
+	for (const box of ui.modelList.querySelectorAll(".model-check")) {
+		box.checked = enabled;
+		box.title = enabled ? "已注入 Copilot" : "已停用";
+	}
+	// 批量会盖掉逐个勾选，旧的不确认了
+	pendingToggles.clear();
+	const token = ++toggleSeq;
+	pendingAll = { enabled, token };
+	send({ type: "setAllModels", enabled });
+	window.setTimeout(() => {
+		if (!pendingAll || pendingAll.token !== token) {
+			return;
+		}
+		pendingAll = null;
+		if (!state) {
+			return;
+		}
+		state.models = state.models.map((item) => ({
+			...item,
+			enabled: original.get(item.id) ?? item.enabled,
+		}));
+		lastModelsKey = "";
+		renderModels(state.models);
+		toast("批量切换没等到确认，已恢复原状", "error");
+	}, 6000);
+}
+
+/** 后端把状态推回来了：对得上就是真存上了，这时才提示。 */
+function reconcilePending(next) {
+	if (pendingAll) {
+		const want = pendingAll.enabled;
+		if (next.status === "error") {
+			pendingAll = null;
+			return;
+		}
+		const done =
+			next.models.length > 0 && next.models.every((item) => (item.enabled !== false) === want);
+		if (!done) {
+			return;
+		}
+		const count = next.models.length;
+		pendingAll = null;
+		toast(
+			want
+				? `已启用全部 ${count} 个模型`
+				: `已停用全部 ${count} 个模型，Copilot 里只会保留开启的`
+		);
+		return;
+	}
+	if (pendingToggles.size === 0) {
+		return;
+	}
+	if (next.status === "error") {
+		pendingToggles.clear();
+		return;
+	}
+	const actual = new Map(next.models.map((item) => [item.id, item.enabled !== false]));
+	const confirmed = [];
+	for (const [modelId, want] of [...pendingToggles]) {
+		if (actual.get(modelId) === want.enabled) {
+			pendingToggles.delete(modelId);
+			confirmed.push({ modelId, enabled: want.enabled });
+		}
+	}
+	if (confirmed.length === 0) {
+		return;
+	}
+	if (confirmed.length === 1) {
+		toast(`${confirmed[0].modelId} ${confirmed[0].enabled ? "已启用" : "已停用"}`);
+	} else {
+		toast(`已更新 ${confirmed.length} 个模型`);
+	}
+}
+
 function renderModels(models) {
+	// 内容没变就直接返回：勾一个不该把整个列表推倒重来
+	const key = modelListKey(models);
+	if (key === lastModelsKey) {
+		return;
+	}
+	lastModelsKey = key;
 	ui.modelList.replaceChildren();
 	const visible = models.filter(
 		(model) => !keyword || model.id.toLowerCase().includes(keyword.toLowerCase())
@@ -285,8 +494,9 @@ function renderModels(models) {
 		checkbox.checked = model.enabled !== false;
 		checkbox.title = checkbox.checked ? "已注入 Copilot" : "已停用";
 		checkbox.addEventListener("change", () => {
-			send({ type: "toggleModel", modelId: model.id, enabled: checkbox.checked });
-			toast(`${model.id} ${checkbox.checked ? "已启用" : "已停用"}`);
+			const enabled = checkbox.checked;
+			checkbox.title = enabled ? "已注入 Copilot" : "已停用";
+			applyLocalToggle(model.id, enabled);
 		});
 
 		const id = document.createElement("span");
@@ -337,7 +547,13 @@ function renderModels(models) {
 			);
 		}
 		if (model.source !== "models.dev") {
-			body.appendChild(makeTag(model.source === "heuristic" ? "按名称推断" : "默认值", "unknown"));
+			const label =
+				model.source === "upstream"
+					? "上游声明"
+					: model.source === "heuristic"
+						? "按名称推断"
+						: "默认值";
+			body.appendChild(makeTag(label, "unknown"));
 		}
 		// 对话时被上游拒过的参数，之后就不发了；刷新模型列表会重新尝试
 		if (model.thinkingUnsupported || model.toolUnsupported) {
@@ -362,7 +578,16 @@ function render(next) {
 	// 站点切了就淡入一次，让内容不是硬切；首次渲染不播
 	const siteChanged = lastSiteId !== null && lastSiteId !== next.activeSiteId;
 	lastSiteId = next.activeSiteId;
+	if (siteChanged) {
+		// 切了站点，旧站点没到家的改名确认不用再追
+		pendingRename = null;
+		hintedKey = "";
+		pendingUrl = "";
+		pendingKey = "";
+		ui.apiKey.value = "";
+	}
 	state = next;
+	reconcilePending(next);
 
 	// 只有真正建成了才退出「新增中」；失败就留着，
 	// 否则会把上一个站点的「已保存 xxx」又顶回来
@@ -371,18 +596,44 @@ function render(next) {
 	}
 
 	ui.enabled.checked = next.enabled;
-	if (document.activeElement !== ui.siteName) {
+	// 新增态下表单归用户所有：后端推来的仍是上一个站点的值，一回填就把刚填的冲掉了
+	if (!addingNew && document.activeElement !== ui.siteName) {
 		ui.siteName.value = next.siteName || "";
+	}
+	// 出错说明这次没存上，别把等待中的确认晾着
+	if (next.status === "error") {
+		pendingUrl = "";
+		pendingKey = "";
+	}
+	// 改名等后端点头：站点名真的变成我们要的那个才算数，这时才提示
+	if (pendingRename !== null) {
+		const expected = pendingRename || hostOfUrl(next.baseUrl);
+		if (next.siteName === expected) {
+			toast(`站点已改名为「${next.siteName}」。`);
+			pendingRename = null;
+		}
+	}
+	// 地址和 Key 是失焦就写的，回包到了就是存好了
+	if (pendingUrl) {
+		if ((next.baseUrl || "").replace(/\/+$/, "") === pendingUrl) {
+			toast("地址已保存");
+			pendingUrl = "";
+		}
+	}
+	if (pendingKey && next.hasApiKey) {
+		toast("Key 已保存");
+		pendingKey = "";
 	}
 	ui.siteNameHint.textContent = addingNew
 		? "新站点的名字，留空就用域名。"
 		: "只是备注，用来区分多个中转站。";
-	if (document.activeElement !== ui.baseUrl) {
+	if (!addingNew && document.activeElement !== ui.baseUrl) {
 		ui.baseUrl.value = next.baseUrl || "";
 	}
-	ui.subtitle.textContent = next.thinkingSupported
-		? "把中转站模型接进 Copilot"
-		: "把中转站模型接进 Copilot（当前版本不显示思考过程）";
+	ui.subtitleText.textContent = next.thinkingSupported
+		? "把中转站模型接进 Copilot 之中"
+		: "把中转站模型接进 Copilot 之中（当前版本不显示思考过程）";
+	ui.version.textContent = next.version ? `v${next.version}` : "";
 
 	ui.apiKey.placeholder = !addingNew && next.hasApiKey ? `已保存 ${next.apiKeyHint}` : "sk-...";
 	ui.keyHint.textContent = addingNew
@@ -397,7 +648,8 @@ function render(next) {
 	const scanning = next.status === "scanning";
 	ui.connect.disabled = scanning;
 	ui.connect.textContent = scanning ? "读取中…" : addingNew ? "添加并读取模型" : "连接并读取模型";
-	ui.rescan.disabled = scanning || !next.baseUrl;
+	// 刷新扫的是当前已存站点，新增态下没有对象可扫
+	ui.rescan.disabled = scanning || addingNew || !next.baseUrl;
 	ui.selectAll.disabled = scanning || next.models.length === 0;
 	ui.selectNone.disabled = scanning || next.models.length === 0;
 
@@ -438,6 +690,7 @@ function render(next) {
 	const scroller = document.scrollingElement;
 	const scrollTop = scroller ? scroller.scrollTop : 0;
 	renderSites(next.sites, next.activeSiteId);
+	refreshSelectText();
 	renderModels(next.models);
 	if (siteChanged) {
 		playSiteSwap();
@@ -477,10 +730,49 @@ function commitSiteName() {
 	if (name === (state.siteName || "")) {
 		return;
 	}
+	// 记下要改成什么，后端确认后再提示
+	pendingRename = name;
 	send({ type: "renameSite", siteId: state.activeSiteId, name });
 }
 
 ui.siteName.addEventListener("blur", commitSiteName);
+
+/** 地址改了直接存，不重扫；模型列表要等下次连接才刷新。 */
+function commitSiteUrl() {
+	if (!state || addingNew) {
+		return;
+	}
+	const url = ui.baseUrl.value.trim().replace(/\/+$/, "");
+	const current = (state.baseUrl || "").replace(/\/+$/, "");
+	if (!url || url === current) {
+		return;
+	}
+	pendingUrl = url;
+	send({ type: "saveSiteFields", baseUrl: url });
+}
+
+/** Key 同样一失焦就写进密钥库。 */
+function commitSiteKey() {
+	if (!state || addingNew) {
+		return;
+	}
+	// 点「显示/隐藏」只是切明文，不算修改
+	if (document.activeElement === ui.toggleKey) {
+		return;
+	}
+	const key = ui.apiKey.value.trim();
+	if (!key || key === hintedKey) {
+		return;
+	}
+	hintedKey = key;
+	pendingKey = key;
+	send({ type: "saveSiteFields", apiKey: key });
+}
+
+ui.baseUrl.addEventListener("blur", commitSiteUrl);
+ui.apiKey.addEventListener("blur", () => window.setTimeout(commitSiteKey, 0));
+ui.siteName.addEventListener("input", refreshSelectText);
+ui.baseUrl.addEventListener("input", refreshSelectText);
 ui.siteName.addEventListener("keydown", (event) => {
 	if (event.key === "Enter") {
 		event.preventDefault();
@@ -499,6 +791,9 @@ ui.newSite.addEventListener("click", () => {
 	ui.urlHint.textContent = "填新中转站的地址，连接后会自动建一个站点。";
 	ui.keyHint.textContent = "新站点的密钥会单独保存。";
 	ui.apiKey.placeholder = "sk-...";
+	// 立刻把下拉换成草稿项，不等后端推状态，点下去就能看见
+	renderSites(state?.sites ?? [], state?.activeSiteId ?? "");
+	refreshSelectText();
 	// 进入新建态时淡入一次，跟切站点用同一套过渡
 	playSiteSwap();
 	toast("填好地址和 Key，点下面的按钮就会新增一个站点");
@@ -514,6 +809,10 @@ ui.enabled.addEventListener("change", () =>
 );
 
 ui.siteSelect.addEventListener("change", () => {
+	// 还停在新站点占位项上，不算切换
+	if (addingNew && ui.siteSelect.value === "") {
+		return;
+	}
 	addingNew = false;
 	send({ type: "selectSite", siteId: ui.siteSelect.value });
 });
@@ -542,19 +841,11 @@ ui.search.addEventListener("input", () => {
 });
 
 ui.selectAll.addEventListener("click", () => {
-	if (!state || state.models.length === 0) {
-		return;
-	}
-	send({ type: "setAllModels", enabled: true });
-	toast(`已启用全部 ${state.models.length} 个模型`);
+	applyLocalAll(true);
 });
 
 ui.selectNone.addEventListener("click", () => {
-	if (!state || state.models.length === 0) {
-		return;
-	}
-	send({ type: "setAllModels", enabled: false });
-	toast(`已停用全部 ${state.models.length} 个模型，Copilot 里只会保留开启的`);
+	applyLocalAll(false);
 });
 
 ui.toggleKey.addEventListener("click", () => {
@@ -563,7 +854,15 @@ ui.toggleKey.addEventListener("click", () => {
 	ui.toggleKey.textContent = showing ? "显示" : "隐藏";
 });
 
-ui.clear.addEventListener("click", () => send({ type: "clear" }));
+ui.openSettings.addEventListener("click", () => send({ type: "openSettings" }));
+ui.wipeAll.addEventListener("click", () => {
+	// 结果提示走后端推回的 message，先清掉去重标记保证会弹
+	lastMessage = "";
+	// 数据要全没了，之前没等到回执的勾选也没必要再去追
+	pendingToggles.clear();
+	pendingAll = null;
+	send({ type: "wipeAll" });
+});
 ui.openSettings.addEventListener("click", () => send({ type: "openSettings" }));
 
 window.addEventListener("message", (event) => {
